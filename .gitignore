@@ -129,6 +129,7 @@ dmypy.json
 .pyre/
 
 # for this project
+.vscode/
 data/raw
 data/processed
 references/
