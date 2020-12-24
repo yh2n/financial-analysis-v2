@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
 
 def get_prices(tickers,
@@ -35,9 +35,17 @@ def get_prices(tickers,
     if (sort_tks):
         tickers = sorted(tickers)
     if data_source == 'yahoo':
+        print("Downloading prices from Yahoo...")
         df = get_prices_from_yahoo(tickers, start, end, types)
+    else:
+        raise ValueError("Currently 'yahoo' is the only supported data_source.")
     if out_path is not None:
-        df.to_csv(out_path)
+        try:
+            df.to_csv(out_path)
+            print("Results saved to: ", out_path)
+        except (IOError, PermissionError):
+            Warning("Failed to output to file!")
+    print("Download finished.")
     return df
 
 
