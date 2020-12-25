@@ -38,7 +38,9 @@ def get_prices(tickers,
         print("Downloading prices from Yahoo...")
         df = get_prices_from_yahoo(tickers, start, end, types)
     else:
-        raise ValueError("Currently 'yahoo' is the only supported data_source.")
+        raise ValueError(
+            "Currently 'yahoo' is the only supported data_source."
+        )
     if out_path is not None:
         try:
             df.to_csv(out_path)
