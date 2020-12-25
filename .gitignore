@@ -130,6 +130,7 @@ dmypy.json
 
 # for this project
 .vscode/
+data/baskets/archive
 data/raw
 data/processed
 references/
