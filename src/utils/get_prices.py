@@ -84,12 +84,10 @@ def get_prices_from_yahoo(tickers, start, end, types=None):
     if types is not None:
         df = df[types]
     df = df.apply(print_and_fill_gaps)
-    # qc: send warnings if no data
+    # QC: send warnings if no data
     df.apply(lambda i: print("WARNING: ", i.name,
                              "has no data during the selected period!")
              if i.isna().all() else None)
-    # cast index dtype to datetime64[ns]
-    df.index = pd.to_datetime(df.index)
     return df
 
 
