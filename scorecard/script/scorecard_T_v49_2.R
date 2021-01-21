@@ -588,7 +588,7 @@ stats_df <- move_col_after(stats_df, "3M Mean Weekly Spread", "3M Mean Daily Spr
 stats_df <- move_col_after(stats_df, "6M Mean Monthly Spread", "3M Mean Weekly Spread")
 stats_df <- move_col_after(stats_df, "Weekly Spread > 10% (Last 3M)", "6M Mean Monthly Spread")
 stats_df <- move_col_after(stats_df, "% of Time > 10% Within 1M (Last 3Y)", "Weekly Spread > 10% (Last 3M)")
-stats_df <- move_col_after(stats_df, "Avg Annualized Returns")
+stats_df <- move_col_after(stats_df, "Avg Annualized Returns", "Weekly Spread > 10% (Last 3M)")
 stats_df <- move_col_after(stats_df, "Distance to 52-Week High", "Avg Annualized Returns")
 stats_df <- move_col_after(stats_df, "Distance to 1Y Mean Target Price", "Distance to 52-Week High")
 stats_df <- move_col_after(stats_df, "Distance to 1Y Median Target Price", "Distance to 1Y Mean Target Price")
