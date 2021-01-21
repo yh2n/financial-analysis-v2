@@ -204,7 +204,6 @@ rolling_spread_weekly <- (rolling_high_weekly - rolling_low_weekly) / unadjprice
 rolling_spread_weekly <- rolling_spread_weekly[, !colnames(rolling_spread_weekly) %in% c("SPY", "QQQ")]
 rolling_spread_monthly <- (rolling_high_monthly - rolling_low_monthly) / unadjprices
 rolling_spread_monthly <- rolling_spread_monthly[, !colnames(rolling_spread_monthly) %in% c("SPY", "QQQ")]
-r_monthly <- (prices - lag(prices, k=22)) / lag(prices, k=22)
 
 # Calc Inception to date(life_to_date)
 inceptions <- sapply(prices, function(tk){min(which(!is.na(tk)))})
@@ -433,6 +432,9 @@ stats_df[, paste0("3M Mean Weekly Spread")] <- toPercent(colMeans(last(rolling_s
 stats_df[, paste0("6M Mean Monthly Spread")] <- toPercent(colMeans(last(rolling_spread_monthly, "6 months"), na.rm=T))
 stats_df[, paste0("Weekly Spread > 10% (Last 3M)")] <-toPercent(colSums(last(rolling_spread_weekly, "3 months") > 0.1, na.rm=T) / colSums(!is.na(last(rolling_spread_weekly, "3 months"))))
 stats_df[, paste0("Monthly Spread > 10% (Last 6M)")] <-toPercent(colSums(last(rolling_spread_monthly, "6 months") > 0.1, na.rm=T) / colSums(!is.na(last(rolling_spread_monthly, "6 months"))))
+
+r_monthly <- (prices - lag(prices, k=22)) / lag(prices, k=22)
+r_monthly <- r_monthly[, !colnames(r_monthly) %in% c("SPY", "QQQ")]
 stats_df[, paste0("% of Time > 10% Within 1M (Last 3Y)")] <- toPercent(colSums(last(r_monthly, "3 years") > 0.1) / colSums(!is.na(last(r_monthly, "3 years"))))
 last_data_row = last(prices)
 last_data_date = index(last_data_row)[1]
@@ -580,7 +582,7 @@ stats_df <- move_col_after(stats_df, 'Up/QQQ down', 'QQQcorrelation')
 stats_df <- move_col_after(stats_df, '3M Sharpe', 'Up/QQQ down')
 stats_df <- move_col_after(stats_df, "3M Median Daily Return", '3M Sharpe')
 stats_df <- move_col_after(stats_df, "1M Median Daily Return", "3M Median Daily Return")
-stats_df <- move_col_after(stats_df, "Lifetime Mean Daily Spread", "3M Median Daily Return", )
+stats_df <- move_col_after(stats_df, "Lifetime Mean Daily Spread", "1M Median Daily Return")
 stats_df <- move_col_after(stats_df, "3M Mean Daily Spread", "Lifetime Mean Daily Spread")
 stats_df <- move_col_after(stats_df, "3M Mean Weekly Spread", "3M Mean Daily Spread")
 stats_df <- move_col_after(stats_df, "6M Mean Monthly Spread", "3M Mean Weekly Spread")
