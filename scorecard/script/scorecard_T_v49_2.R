@@ -597,7 +597,7 @@ stats_df <- move_col_after(stats_df, "Distance to 1Y Mean +1SD Target Price", "D
 stats_df <- move_col_after(stats_df, "Distance to 1Y Mean Target Price (1Y Ago Lagged)", "Distance to 1Y Mean +1SD Target Price")
 stats_df <- move_col_after(stats_df, "Price Relative to 200D SMA", "Distance to 1Y Mean Target Price (1Y Ago Lagged)")
 stats_df <- move_col_after(stats_df, "Price Relative to 50D SMA", "Price Relative to 200D SMA")
-stats_df <- move_col_after(stats_df, "Beta up to 3yr", "QQQcorrelation")
+stats_df <- move_col_after(stats_df, "Beta up to 3yr", "Price Relative to 50D SMA")
 stats_df <- move_col_after(stats_df, "Since Jan 1998 Annualized Return {Sharpe}", "Since Inception/1980 Sharpe")
 stats_df <- move_col_after(stats_df, "Since Jan 1998 Sharpe", "Since Jan 1998 Annualized Return {Sharpe}")
 stats_df <- move_col_after(stats_df, "SPYcorrelation", "EPS")
