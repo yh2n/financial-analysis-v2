@@ -555,9 +555,11 @@ stats_df[, ann_rtn_colnames_less_1y] <- sapply(period_less_1y, function(p){
 colnames(stats_df)[colnames(stats_df) %in% ann_rtn_colnames_less_1y] <- paste0(ann_rtn_colnames_less_1y, " {Sharpe}")
 
 # drop undesired columns
+# keep 3Y Return
+rtn_colnames_gteq_1y_to_del <- rtn_colnames_gteq_1y[rtn_colnames_gteq_1y != '3Y Return']
 stats_df <- stats_df[, colnames(stats_df) != "Avg Sharpe"]
 stats_df <- stats_df[, colnames(stats_df) != "max_lookbacks"]
-stats_df <- stats_df[, !(names(stats_df) %in% rtn_colnames_gteq_1y)]
+stats_df <- stats_df[, !(names(stats_df) %in% rtn_colnames_gteq_1y_to_del)]
 stats_df <- stats_df[, !(names(stats_df) %in% rtn_colnames_less_1y)]
 
 # rearrange columns
@@ -567,14 +569,15 @@ stats_df <- move_col_after(stats_df, 'Market Cap', paste0("Close Price on ", las
 #stats_df <- move_col_after(stats_df, '# of Market Cap Doublings, Last 3Y', 'Market Cap Jan 1, 2021')
 #stats_df <- move_col_after(stats_df, 'Avg. Time to Market Cap Doubling, Last 3Y', '# of Market Cap Doublings, Last 3Y')
 #stats_df <- move_col_after(stats_df, '3Y Total Return', 'Avg. Time to Market Cap Doubling, Last 3Y')
-stats_df <- move_col_after(stats_df, '3Y Total Return', 'Market Cap')
-stats_df <- move_col_after(stats_df, '3Y Annualized Return {Sharpe}', '3Y Total Return')
+stats_df <- move_col_after(stats_df, '3Y Return', 'Market Cap')
+stats_df <- move_col_after(stats_df, '3Y Annualized Return {Sharpe}', '3Y Return')
 stats_df <- move_col_after(stats_df, '1Y Annualized Return {Sharpe}', '3Y Annualized Return {Sharpe}')
 stats_df <- move_col_after(stats_df, "EPS", "1Y Annualized Return {Sharpe}")
 stats_df <- move_col_after(stats_df, "SPYcorrelation", "EPS")
 stats_df <- move_col_after(stats_df, "QQQcorrelation", "SPYcorrelation")
-stats_df <- move_col_after(stats_df, 'Performance vs QQQ, 3M', 'QQQcorrelation')
-stats_df <- move_col_after(stats_df, '3M Sharpe', 'Performance vs QQQ, 3M')
+stats_df <- move_col_after(stats_df, 'Up/QQQ down', 'QQQcorrelation')
+stats_df <- move_col_after(stats_df, '3M Sharpe', 'Up/QQQ down')
+#stats_df <- move_col_after(stats_df, '3M Sharpe', "QQQcorrelation")
 stats_df <- move_col_after(stats_df, "3M Median Daily Return", '3M Sharpe')
 stats_df <- move_col_after(stats_df, "1M Median Daily Return", "3M Median Daily Return")
 stats_df <- move_col_after(stats_df, "Avg Annualized Returns", "1M Median Daily Return")
