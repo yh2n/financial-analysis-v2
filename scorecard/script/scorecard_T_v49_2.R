@@ -435,6 +435,15 @@ stats_df[, paste0("Monthly Spread > 10% (Last 6M)")] <-toPercent(colSums(last(ro
 
 r_monthly <- (prices - lag(prices, k=22)) / lag(prices, k=22)
 r_monthly <- r_monthly[, !colnames(r_monthly) %in% c("SPY", "QQQ")]
+r_three_monthly <- (prices - lag(prices, k=66)) / lag(prices, k=66)
+r_three_monthly_vs_qqq <- lapply(r_three_monthly, function(tk) {
+  temp <- tk - r_three_monthly[, 'QQQ']
+  colnames(temp) <- names(tk)
+  temp
+})
+r_three_monthly_vs_qqq <- do.call(merge, r_three_monthly_vs_qqq)
+r_three_monthly_vs_qqq <- r_three_monthly_vs_qqq[, !colnames(r_three_monthly_vs_qqq) %in% c("SPY", "QQQ")]
+stats_df[, paste0('Outperformance/Underperformance vs QQQ, 3M')] <- toPercent(last(r_three_monthly_vs_qqq, '1 day'))
 stats_df[, paste0("% of Time > 10% Within 1M (Last 3Y)")] <- toPercent(colSums(last(r_monthly, "3 years") > 0.1) / colSums(!is.na(last(r_monthly, "3 years"))))
 last_data_row = last(prices)
 last_data_date = index(last_data_row)[1]
@@ -578,7 +587,8 @@ stats_df <- move_col_after(stats_df, '1Y Annualized Return {Sharpe}', '3Y Annual
 stats_df <- move_col_after(stats_df, "EPS", "1Y Annualized Return {Sharpe}")
 stats_df <- move_col_after(stats_df, "SPYcorrelation", "EPS")
 stats_df <- move_col_after(stats_df, "QQQcorrelation", "SPYcorrelation")
-stats_df <- move_col_after(stats_df, 'Up/QQQ down', 'QQQcorrelation')
+stats_df <- move_col_after(stats_df, 'Outperformance/Underperformance vs QQQ, 3M', 'QQQcorrelation')
+#stats_df <- move_col_after(stats_df, 'Up/QQQ down', 'QQQcorrelation')
 stats_df <- move_col_after(stats_df, '3M Sharpe', 'Up/QQQ down')
 stats_df <- move_col_after(stats_df, "3M Median Daily Return", '3M Sharpe')
 stats_df <- move_col_after(stats_df, "1M Median Daily Return", "3M Median Daily Return")

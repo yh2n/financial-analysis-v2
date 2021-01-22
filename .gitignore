@@ -129,6 +129,7 @@ dmypy.json
 .pyre/
 
 # for this project
+.DS_Store
 .vscode/
 data/baskets/archive
 data/raw
