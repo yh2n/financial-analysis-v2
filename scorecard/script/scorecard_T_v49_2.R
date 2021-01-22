@@ -502,8 +502,8 @@ stats_df[, "Market Cap"] <- sapply(stats_df[, "Ticker"], function(tk) {
 
 
 # Formatting ------------------------------------------------------------
-# rank by Avg Sharpe. This should be done before the ranking column get further formatted(become str)
-stats_df <- stats_df[order(stats_df[, "Avg Sharpe"], decreasing=T),]
+# rank by 3M Sharpe. This should be done before the ranking column get further formatted(become str)
+stats_df <- stats_df[order(stats_df[, "3M Sharpe"], decreasing=T),]
 
 # round to 2 decimal places
 to_round <- c("Avg Sharpe", sharpe_colnames, cor_colnames)
@@ -588,8 +588,7 @@ stats_df <- move_col_after(stats_df, "EPS", "1Y Annualized Return {Sharpe}")
 stats_df <- move_col_after(stats_df, "SPYcorrelation", "EPS")
 stats_df <- move_col_after(stats_df, "QQQcorrelation", "SPYcorrelation")
 stats_df <- move_col_after(stats_df, 'Outperformance/Underperformance vs QQQ, 3M', 'QQQcorrelation')
-#stats_df <- move_col_after(stats_df, 'Up/QQQ down', 'QQQcorrelation')
-stats_df <- move_col_after(stats_df, '3M Sharpe', 'Up/QQQ down')
+stats_df <- move_col_after(stats_df, '3M Sharpe', 'Outperformance/Underperformance vs QQQ, 3M')
 stats_df <- move_col_after(stats_df, "3M Median Daily Return", '3M Sharpe')
 stats_df <- move_col_after(stats_df, "1M Median Daily Return", "3M Median Daily Return")
 stats_df <- move_col_after(stats_df, "Lifetime Mean Daily Spread", "1M Median Daily Return")
