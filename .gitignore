@@ -129,9 +129,18 @@ dmypy.json
 .pyre/
 
 # for this project
+.DS_Store
 .vscode/
 data/baskets/archive
 data/raw
 data/processed
 references/
 reports/
+.Rproj.user
+scorecard/data/hi*
+scorecard/data/lo*
+scorecard/data/op*
+scorecard/data/prc*
+scorecard/data/unadj*
+scorecard/output/*
+scorecard/data/.*
