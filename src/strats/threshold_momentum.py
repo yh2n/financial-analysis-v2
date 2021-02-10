@@ -87,7 +87,8 @@ def threshold_momentum_holdout_returns(
                 else:
                     drawdowns.loc[day, ticker] = close_return
 
-            if close_to_close.loc[day, ticker] >= threshold:
+            if (bought_date is None
+                    and close_to_close.loc[day, ticker] >= threshold):
                 bought_date = day
                 bought_price = closes.loc[day]
 
