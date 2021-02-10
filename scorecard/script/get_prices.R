@@ -21,7 +21,7 @@ library(quantmod)
 
 
 # Get prices from source and aggregate by type ------------------------------------------
-get_prices <- function(tickers, start, end, types="Ad", datasource="Y", outfiles=NULL, sort_tks=FALSE, py_path="./script/") {
+get_prices <- function(tickers, start, end, types="Cl", datasource="T", outfiles=NULL, sort_tks=FALSE, py_path="./script/") {
   if(!all(types %in% c("Op", "Hi", "Lo", "Cl", "Vo", "Ad"))) {
     stop('"types" of price must be chosen from "Op", "Hi", "Lo", "Cl", "Vo" and "Ad" ')
   }
@@ -73,12 +73,12 @@ get_prices <- function(tickers, start, end, types="Ad", datasource="Y", outfiles
 
 
 # get OHLC data for tickers --------------------------------------------------------
-get_all_prices <- function(tickers, start, end, datasource="Y", out_path=NULL, sort_tks=FALSE, py_path="./script/") {
+get_all_prices <- function(tickers, start, end, datasource="T", out_path=NULL, sort_tks=FALSE, py_path="./script/") {
   if(sort_tks) tickers <- sort(tickers)
   
   # download from source 
-  if(datasource == "Y") {
-    cat("Downloading from Yahoo ... ")
+  if(datasource == "T") {
+    cat("Downloading from Tiingo ... ")
     # inception dates(for fixing yahoo data)
     inception_dates <- c(
       DOMO = "2018-06-29",
@@ -94,16 +94,19 @@ get_all_prices <- function(tickers, start, end, datasource="Y", out_path=NULL, s
       PD = "2019-04-12",
       U = "2020-09-18"
     )
+
+    api_key <- '9a73b39f64bb2c32bbc0a52fb5ff970c2929f241'
     # download prices into list
     price_list <- lapply(tickers, function(tk) {
-      price <- getSymbols(tk, src="yahoo", from=start, to=end, auto.assign=FALSE)
+      price <- getSymbols(tk, src="tiingo",from=start, to=end,
+                          auto.assign=FALSE, api.key=api_key, adjust=TRUE)
       if(tk %in% names(inception_dates)) price <- price[paste0(inception_dates[tk], "/"), ]
       if(length(price) == 0) stop(tk, " has no data during selected period")
       return(price)
     })
     names(price_list) <- tickers
   } else {
-    stop('Currently datasource must be "Y"')
+    stop('Currently datasource must be "T"')
   }
   cat("Download finished. \n")
   

@@ -91,7 +91,7 @@ source(paste0(SCRIPT_PATH, "get_market_cap.R"))
 
 # Inputs ---------------------------------------
 version <- "v49"
-datasource <- "Y" #K:Kensho  G:Google
+datasource <- "T" #K:Kensho  G:Google Y:Yahoo
 
 # parameters
  basket <- "scorecard_single_ticker"
@@ -115,6 +115,7 @@ period_less_1y <- names(lookbacks)[!(names(lookbacks) %in% period_gteq_1y)]
 
 # tickers 
 tkr_list <- read.table(paste0(BASKET_PATH, basket, ".csv"), header=TRUE, sep=",", stringsAsFactors=FALSE)[,1]
+tkr_list <- head(tkr_list)
 all_tks <- unique(c(tkr_list, corr_tks))
 
 # outfile path
@@ -130,14 +131,12 @@ hipricefile_name <- paste("hi", basket, start_date, end_date, datasource, sep="_
 hipricefile <- paste0(PRICEFILE_PATH, hipricefile_name, ".csv")
 lopricefile_name <- paste("lo", basket, start_date, end_date, datasource, sep="_")
 lopricefile <- paste0(PRICEFILE_PATH, lopricefile_name, ".csv")
-unadjclosefile_name <-n<- paste("unadj", basket, start_date, end_date, datasource, sep="_")
-unadjclosefile <- paste0(PRICEFILE_PATH, unadjclosefile_name, ".csv")
 openfile_name = paste("open", basket, start_date, end_date, datasource, sep="_")
 openpricefile <- paste0(PRICEFILE_PATH, openfile_name, ".csv")
 if(!file.exists(pricefile)) {
   cat("Cannot find existing price file.\n")
-  price_list <- get_prices(tickers=all_tks, start=start_date, types=c("Ad", "Hi", "Lo", "Cl", "Op"), 
-                           end=end_date, datasource=datasource, outfiles=c(pricefile, hipricefile, lopricefile, unadjclosefile, openpricefile))
+  price_list <- get_prices(tickers=all_tks, start=start_date, types=c("Cl", "Hi", "Lo", "Op"),
+                           end=end_date, datasource=datasource, outfiles=c(pricefile, hipricefile, lopricefile, openpricefile))
 }
 prices <- read.zoo(pricefile, sep=",", index.column=1, header=TRUE, check.names=FALSE)
 prices <- as.xts(prices)
@@ -148,9 +147,6 @@ cat("High prices read from existing file ",hipricefile, "\n\n")
 loprices <- read.zoo(lopricefile, sep=",", index.column=1, header=TRUE, check.names=FALSE)
 loprices <- as.xts(loprices)
 cat("Low prices read from existing file ",lopricefile, "\n\n")
-unadjprices <- read.zoo(unadjclosefile, sep=",", index.column=1, header=TRUE, check.names=FALSE)
-unadjprices <- as.xts(unadjprices)
-cat("Unadjusted close prices read from existing file ",unadjclosefile, "\n\n")
 openprices <- read.zoo(openpricefile, sep=",", index.column=1, header=TRUE, check.names=FALSE)
 openprices <- as.xts(openprices)
 cat("Open prices read from existing file ",openpricefile, "\n\n")
@@ -186,11 +182,11 @@ r_daily <- lapply(prices, function(tk) {
 r_daily <- do.call(merge, r_daily)
 
 # Calc close to high returns
-r_hi_daily <- ((hiprices - lag(unadjprices)) / lag(unadjprices)) * 100
+r_hi_daily <- ((hiprices - lag(prices)) / lag(prices)) * 100
 # Calc close to open returns
-r_open_daily <- ((openprices - lag(unadjprices)) / lag(unadjprices)) * 100
+r_open_daily <- ((openprices - lag(prices)) / lag(prices)) * 100
 # calc daily spread as a ratio of close price
-r_spread_daily <- ((hiprices - loprices)) / unadjprices
+r_spread_daily <- ((hiprices - loprices)) / prices
 r_spread_daily <- r_spread_daily[, !colnames(r_spread_daily) %in% c("SPY", "QQQ")]
 # rolling week high prices
 rolling_high_weekly <-rollapply(hiprices, width=5, FUN = max)
@@ -200,9 +196,9 @@ rolling_low_weekly <-rollapply(loprices, width=5, FUN = min)
 rolling_high_monthly <-rollapply(hiprices, width=22, FUN = max)
 # rolling month low prices
 rolling_low_monthly <-rollapply(loprices, width=22, FUN = min)
-rolling_spread_weekly <- (rolling_high_weekly - rolling_low_weekly) / unadjprices
+rolling_spread_weekly <- (rolling_high_weekly - rolling_low_weekly) / prices
 rolling_spread_weekly <- rolling_spread_weekly[, !colnames(rolling_spread_weekly) %in% c("SPY", "QQQ")]
-rolling_spread_monthly <- (rolling_high_monthly - rolling_low_monthly) / unadjprices
+rolling_spread_monthly <- (rolling_high_monthly - rolling_low_monthly) / prices
 rolling_spread_monthly <- rolling_spread_monthly[, !colnames(rolling_spread_monthly) %in% c("SPY", "QQQ")]
 
 # Calc Inception to date(life_to_date)
