@@ -200,6 +200,21 @@ class TestHoldoutThresholdMomentum(unittest.TestCase):
         assert_frame_equal(returns, expected)
         assert_frame_equal(drawdowns, expected_drawdowns)
 
+    def test_sells_if_breakeven_during_day(self):
+        # Test case where doesn't sell next day, and day after closes
+        # at a loss but breaks even during the day (high >= buy_price)
+        close_prices = single_col_df([1, 2, 1, 1])
+        hi_prices = single_col_df([1, 2, 1, 2])
+
+        expected_returns = single_col_df([np.nan, np.nan, np.nan, 0])
+        expected_drawdowns = single_col_df([np.nan, np.nan, -0.5, np.nan])
+
+        returns, drawdowns = threshold_momentum_holdout_returns(
+            close_prices, hi_prices, 0.05, self.limit)
+
+        assert_frame_equal(returns, expected_returns)
+        assert_frame_equal(drawdowns, expected_drawdowns)
+
 
 if __name__ == '__main__':
     unittest.main()

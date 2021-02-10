@@ -53,8 +53,8 @@ def threshold_momentum_holdout_returns(
     Logic:
         - Buy at close_t if return on close from t-1 to t exceeds `threshold`
         - Sell at either
-         - a return of `limit`
-         - the close the following day, if the return never reaches `limit`.
+            - `limit` if return meets or exceeds `limit` the next day
+            - first nonnegative return thereafter
     """
 
     close_to_close = close_prices.pct_change()
@@ -65,26 +65,30 @@ def threshold_momentum_holdout_returns(
         np.nan, index=close_to_close.index, columns=close_to_close.columns)
 
     for ticker in returns.columns:
-        holding = False
+        bought_date = None
         bought_price = None
 
         closes = close_prices[ticker]
         his = hi_prices[ticker]
 
-        for day in returns.index[1:]:
-            if holding:  # Check if should sell
+        for day, yesterday in zip(returns.index[1:], returns.index[:-1]):
+            if bought_date is not None:
                 close_return = (closes.loc[day] - bought_price) / bought_price
                 hi_return = (his.loc[day] - bought_price) / bought_price
 
-                if hi_return >= limit or close_return >= 0:
-                    returns.loc[day, ticker] = (
-                        limit if hi_return >= limit else close_return)
-                    holding = False
+                target = limit if bought_date == yesterday else 0
+
+                # If it's day t+1 and target isn't hit during the day
+                # but the close return is non-negative, then close out
+                if hi_return >= target or close_return >= 0:
+                    returns.loc[day, ticker] = target
+                    bought_date = None
                     bought_price = None
                 else:
                     drawdowns.loc[day, ticker] = close_return
-            if close_to_close.loc[day, ticker] > threshold:
-                holding = True
+
+            if close_to_close.loc[day, ticker] >= threshold:
+                bought_date = day
                 bought_price = closes.loc[day]
 
     return returns, drawdowns
