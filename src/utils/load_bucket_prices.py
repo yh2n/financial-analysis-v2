@@ -9,6 +9,13 @@ TICKER_PATH = DATA_PATH / '{}.csv'.format(BASKET_NAME)
 
 
 def load_bucket_prices(start, end):
+    """
+    Returns all available data types from `start` to `end` for the tickers
+    specified in `scorecard/data/scorecard_single_ticker.csv'. Data is either
+    read from a file in `scorecard/data/` or fetched using `get_prices`.
+
+    Basket can be made a parameter in future.
+    """
     price_filename = f'prc_{BASKET_NAME}_{start}_{end}_Y.csv'
     price_filepath = DATA_PATH / price_filename
 
