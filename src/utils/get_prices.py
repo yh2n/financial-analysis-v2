@@ -1,3 +1,5 @@
+import os
+
 import pandas_datareader.data as web
 import pandas as pd
 import numpy as np
@@ -6,11 +8,35 @@ import numpy as np
 __version__ = '0.0.3'
 
 
+def _tiingo_type_mapper(typestr):
+    out = ''
+    for c in typestr:
+        if c.isupper():
+            out += '_'
+            c = c.lower()
+        out += c
+    return out
+
+
+SOURCES = ['yahoo', 'tiingo']
+
+VALID_TYPES = {
+    'yahoo': ['Adj Close', 'Close', 'High', 'Low', 'Open', 'Volume'],
+    'tiingo': ['close', 'high', 'low', 'open', 'volume', 'adjClose', 'adjHigh',
+               'adjLow', 'adjOpen', 'adjVolume', 'divCash', 'splitFactor']
+}
+
+TYPE_MAPPERS = {
+    'yahoo': lambda typestr: typestr.replace(' ', '_').lower(),
+    'tiingo': _tiingo_type_mapper
+}
+
+
 def get_prices(tickers,
                start,
                end,
                types=None,
-               data_source='yahoo',
+               data_source='tiingo',
                out_path=None,
                sort_tks=False):
     """Download prices from external source.
@@ -34,13 +60,14 @@ def get_prices(tickers,
         types = [types]
     if (sort_tks):
         tickers = sorted(tickers)
-    if data_source == 'yahoo':
-        print("Downloading prices from Yahoo...")
-        df = get_prices_from_yahoo(tickers, start, end, types)
-    else:
+    if data_source not in SOURCES:
         raise ValueError(
-            "Currently 'yahoo' is the only supported data_source."
+            'data_source must be one of {SOURCES}.'
         )
+
+    print(f'Downloading prices from {data_source.capitalize()}...')
+    df = get_prices_from_source(tickers, start, end, data_source, types)
+
     if out_path is not None:
         try:
             df.to_csv(out_path)
@@ -51,17 +78,30 @@ def get_prices(tickers,
     return df
 
 
-def get_prices_from_yahoo(tickers, start, end, types=None):
+def get_prices_from_source(tickers, start, end, source, types=None):
     """Download daily prices from Yahoo!."""
-    valid_types = ['Adj Close', 'Close', 'High', 'Low', 'Open', 'Volume']
-    if types is not None and not all(i in valid_types for i in types):
+    if types is not None and not all(i in VALID_TYPES[source] for i in types):
         raise ValueError(
-            f"Wrong 'types' provided. Must be chosen from{valid_types}.")
-    # download from yahoo
+            f"Wrong 'types' provided for source {source}. Must be chosen from "
+            f'{VALID_TYPES[source]}.')
+
+    params = {}
+    if source == 'tiingo':
+        params['api_key'] = os.getenv('TIINGO_API_KEY')
+
     df = web.DataReader(name=tickers,
-                        data_source='yahoo',
+                        data_source=source,
                         start=start,
-                        end=end)
+                        end=end,
+                        **params)
+    df = df.rename(mapper=TYPE_MAPPERS[source], axis=1)
+
+    if source == 'tiingo':
+        df = df.unstack(level=0)
+
+    df.index.name = 'date'
+    df.columns.names = ['attributes', 'symbols']
+
     # hardcoded 1 day before inception dates(for fixing yahoo data)
     inception_dates = {
         'DOMO': '2018-06-28',
@@ -83,7 +123,7 @@ def get_prices_from_yahoo(tickers, start, end, types=None):
     # filter types if provided
     if types is not None:
         df = df[types]
-    df = df.apply(print_and_fill_gaps)
+    df = df.apply(_print_and_fill_gaps)
     # QC: send warnings if no data
     df.apply(lambda i: print("WARNING: ", i.name,
                              "has no data during the selected period!")
@@ -91,7 +131,7 @@ def get_prices_from_yahoo(tickers, start, end, types=None):
     return df
 
 
-def print_and_fill_gaps(series):
+def _print_and_fill_gaps(series):
     if series.isna().all():
         return series
     s = series.copy()
