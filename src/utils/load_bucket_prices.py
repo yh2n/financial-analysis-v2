@@ -3,9 +3,10 @@ import pandas as pd
 from pathlib import Path
 from .get_prices import get_prices
 
-DATA_PATH = Path('scorecard/data')
+DATA_PATH = Path('data/raw')
+BASKET_PATH = Path('data/basket')
 BASKET_NAME = 'scorecard_single_ticker'
-TICKER_PATH = DATA_PATH / '{}.csv'.format(BASKET_NAME)
+TICKER_PATH = BASKET_PATH / '{}.csv'.format(BASKET_NAME)
 
 
 def load_bucket_prices(start, end):
