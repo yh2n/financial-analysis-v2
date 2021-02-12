@@ -138,8 +138,6 @@ notebooks/sandbox.ipynb
 references/
 reports/
 .Rproj.user
-scorecard/data/raw
-scorecard/data/processed
 scorecard/output
 scorecard/.RData
 scorecard/.Rhistory
