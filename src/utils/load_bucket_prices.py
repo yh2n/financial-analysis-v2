@@ -4,7 +4,7 @@ from pathlib import Path
 from .get_prices import get_prices
 
 DATA_PATH = Path('data/raw')
-BASKET_PATH = Path('data/basket')
+BASKET_PATH = Path('data/baskets')
 BASKET_NAME = 'scorecard_single_ticker'
 TICKER_PATH = BASKET_PATH / '{}.csv'.format(BASKET_NAME)
 
