@@ -80,7 +80,7 @@
 rm(list = ls())
 ALEC_PATH <- FALSE
 SCRIPT_PATH <- ifelse(ALEC_PATH, "C:/R/", "./script/")
-BASKET_PATH <- ifelse(ALEC_PATH, "C:/kensho/scorecard/", "./data/")
+BASKET_PATH <- ifelse(ALEC_PATH, "C:/kensho/scorecard/", "../data/baskets/")
 PRICEFILE_PATH <- ifelse(ALEC_PATH, "C:/kensho/basket/", "./data/")
 OUTPUT_PATH <- ifelse(ALEC_PATH, "C:/kensho/scorecard/", "./output/")
 
