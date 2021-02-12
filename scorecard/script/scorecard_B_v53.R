@@ -78,11 +78,18 @@
 
 # Configuration --------------------------------
 rm(list = ls())
+<<<<<<< HEAD
 ALEC_PATH <- FALSE
 SCRIPT_PATH <- ifelse(ALEC_PATH, "C:/R/", "./script/")
 BASKET_PATH <- ifelse(ALEC_PATH, "C:/kensho/scorecard/", "../data/baskets/")
 PRICEFILE_PATH <- ifelse(ALEC_PATH, "C:/kensho/basket/", "./data/")
 OUTPUT_PATH <- ifelse(ALEC_PATH, "C:/kensho/scorecard/", "./output/")
+=======
+SCRIPT_PATH <- "./script/"
+BASKET_PATH <- "../data/baskets/"
+PRICEFILE_PATH <- "../data/raw/"
+OUTPUT_PATH <- "./output/"
+>>>>>>> af59b51 (Update DATA_PATH)
 
 library(quantmod)
 library(RQuantLib)
@@ -96,7 +103,9 @@ source(paste0(SCRIPT_PATH, "read_baskets.R"))
 
 # Inputs ---------------------------------------
 version <- "v53"
-datasource <- "Y" #K:Kensho  G:Google
+datasource <- "T"
+
+### TODO
 
 # parameters
 baskets_file <- "scorecard_new_vista_B"
