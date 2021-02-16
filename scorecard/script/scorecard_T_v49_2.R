@@ -71,11 +71,10 @@
 
 # Configuration --------------------------------
 rm(list = ls())
-ALEC_PATH <- FALSE
-SCRIPT_PATH <- ifelse(ALEC_PATH, "C:/R/", "./script/")
-BASKET_PATH <- ifelse(ALEC_PATH, "C:/kensho/scorecard/", "../data/baskets/")
-PRICEFILE_PATH <- ifelse(ALEC_PATH, "C:/kensho/basket/", "./data/")
-OUTPUT_PATH <- ifelse(ALEC_PATH, "C:/kensho/scorecard/", "./output/")
+SCRIPT_PATH <- "./script/"
+BASKET_PATH <- "../data/baskets/"
+PRICEFILE_PATH <- "../data/raw/"
+OUTPUT_PATH <- "./output/"
 
 library(matrixStats)
 library(quantmod)
@@ -88,24 +87,26 @@ source(paste0(SCRIPT_PATH, "format_number.R"))
 source(paste0(SCRIPT_PATH, "move_col_after.R"))
 source(paste0(SCRIPT_PATH, "get_market_cap.R"))
 
+TESTING_MODE <- FALSE
 
 # Inputs ---------------------------------------
 version <- "v49"
-datasource <- "T" #K:Kensho  G:Google Y:Yahoo
+datasource <- "T"
 
-# parameters
- basket <- "scorecard_single_ticker"
+# basket
+basket <- "scorecard_single_ticker"
 # basket <- "scorecard_new_vista_T"
 # basket <- "scorecard_ETF"
+
+# other parameters
 start_date <- "1980-01-01"
-high_to_close_start_date <- "2020-02-19"
 end_date <- format(Sys.Date())
+high_to_close_start_date <- "2020-11-03"
 DDthreshold <- 20
 downSize <- 0.0025
 corr_tks <- c("SPY", "QQQ")
 corrLength <- 756
 n2years <- 504
-ytd <- businessDaysBetween("UnitedStates/NYSE", as.Date("2019-01-01"), as.Date(end_date))
 jan1998_td <- businessDaysBetween("UnitedStates/NYSE", as.Date("1998-01-01"), as.Date(end_date))
 lookbacks <- c(10, 21, 3*21, 6*21, 1*252, 3*252, 5*252, 10*252, 15*252, jan1998_td)
 names(lookbacks) <- c("2W", "1M", "3M", "6M", "1Y", "3Y", "5Y", "10Y", "15Y", "Since Jan 1998")
@@ -113,9 +114,13 @@ lookbacks <- lookbacks[c("15Y", "10Y", "5Y", "3Y", "1Y", "6M", "3M", "1M", "Sinc
 period_gteq_1y <- c("15Y", "10Y", "5Y", "3Y", "1Y", "Since Jan 1998", "Since Inception/1980")
 period_less_1y <- names(lookbacks)[!(names(lookbacks) %in% period_gteq_1y)]
 
+if(TESTING_MODE) {
+  end_date <- "2021-02-11"
+  basket <- "scorecard_single_ticker_TESTING_ONLY"
+}
+
 # tickers 
-tkr_list <- read.table(paste0(BASKET_PATH, basket, ".csv"), header=TRUE, sep=",", stringsAsFactors=FALSE)[,1]
-tkr_list <- head(tkr_list)
+tkr_list <- read.table(paste0(BASKET_PATH, basket, ".csv"), header=FALSE, sep=",", stringsAsFactors=FALSE)[,1]
 all_tks <- unique(c(tkr_list, corr_tks))
 
 # outfile path
@@ -125,32 +130,35 @@ outfile <- paste0(OUTPUT_PATH, outfile_name, ".csv")
 
 # Data -----------------------------------------
 # read price file, if not exist, create one.
-pricefile_name <- paste("prc", basket, start_date, end_date, datasource, sep="_")
+pricefile_name <- paste("R_prc_cl", basket, start_date, end_date, datasource, sep="_")
+hipricefile_name <- paste("R_prc_hi", basket, start_date, end_date, datasource, sep="_")
+lopricefile_name <- paste("R_prc_lo", basket, start_date, end_date, datasource, sep="_")
+openfile_name = paste("R_prc_op", basket, start_date, end_date, datasource, sep="_")
 pricefile <- paste0(PRICEFILE_PATH, pricefile_name, ".csv")
-hipricefile_name <- paste("hi", basket, start_date, end_date, datasource, sep="_")
 hipricefile <- paste0(PRICEFILE_PATH, hipricefile_name, ".csv")
-lopricefile_name <- paste("lo", basket, start_date, end_date, datasource, sep="_")
 lopricefile <- paste0(PRICEFILE_PATH, lopricefile_name, ".csv")
-openfile_name = paste("open", basket, start_date, end_date, datasource, sep="_")
 openpricefile <- paste0(PRICEFILE_PATH, openfile_name, ".csv")
+
 if(!file.exists(pricefile)) {
   cat("Cannot find existing price file.\n")
-  price_list <- get_prices(tickers=all_tks, start=start_date, types=c("Cl", "Hi", "Lo", "Op"),
-                           end=end_date, datasource=datasource, outfiles=c(pricefile, hipricefile, lopricefile, openpricefile))
+  price_list <- get_prices(tickers=all_tks, start=start_date, end=end_date,
+                           types=c("Cl", "Hi", "Lo", "Op"), datasource=datasource,
+                           outfiles=c(pricefile, hipricefile, lopricefile, openpricefile))
+} else {
+  cat("Price files already exist. Reading from existing file...\n")
 }
 prices <- read.zoo(pricefile, sep=",", index.column=1, header=TRUE, check.names=FALSE)
 prices <- as.xts(prices)
-cat("Prices read from existing file ",pricefile, "\n\n")
+cat("Prices read from file ",pricefile, "\n")
 hiprices <- read.zoo(hipricefile, sep=",", index.column=1, header=TRUE, check.names=FALSE)
 hiprices <- as.xts(hiprices)
-cat("High prices read from existing file ",hipricefile, "\n\n")
+cat("High prices read from file ",hipricefile, "\n")
 loprices <- read.zoo(lopricefile, sep=",", index.column=1, header=TRUE, check.names=FALSE)
 loprices <- as.xts(loprices)
-cat("Low prices read from existing file ",lopricefile, "\n\n")
+cat("Low prices read from file ",lopricefile, "\n")
 openprices <- read.zoo(openpricefile, sep=",", index.column=1, header=TRUE, check.names=FALSE)
 openprices <- as.xts(openprices)
-cat("Open prices read from existing file ",openpricefile, "\n\n")
-
+cat("Open prices read from file ",openpricefile, "\n")
 
 # download target prices and find last price
 tp_use_col <- c("tp_mean_est", "tp_median_est", "tp_high_est", "tp_low_est", "tp_std_dev_est")
@@ -167,12 +175,13 @@ earnings_list <- get_earnings(tickers=all_tks, start=as.Date(end_date)-365, end=
 earnings <- unlist(lapply(earnings_list, function(tk) {
   if(NROW(tk) == 0) return(NULL) else return(tail(tk[, "eps_act"], 1))
 }))
+
 # download market cap and find last market cap
 market_cap_list <- get_market_cap(tickers=all_tks, start=as.Date(end_date)-365, end=end_date)
 market_cap <- unlist(lapply(market_cap_list, function(tk) {
   if(NROW(tk) == 0) return(NULL) else return(tail(tk[, "Market Capitalization"], 1))
 }))
-#market_cap <- market_cap * last(prices, "1 day")
+
 # Calc returns
 r_daily <- lapply(prices, function(tk) {
   temp <- dailyReturn(tk)
@@ -182,9 +191,9 @@ r_daily <- lapply(prices, function(tk) {
 r_daily <- do.call(merge, r_daily)
 
 # Calc close to high returns
-r_hi_daily <- ((hiprices - lag(prices)) / lag(prices)) * 100
+r_hi_daily <- (hiprices - lag(prices)) / lag(prices)
 # Calc close to open returns
-r_open_daily <- ((openprices - lag(prices)) / lag(prices)) * 100
+r_open_daily <- (openprices - lag(prices)) / lag(prices)
 # calc daily spread as a ratio of close price
 r_spread_daily <- ((hiprices - loprices)) / prices
 r_spread_daily <- r_spread_daily[, !colnames(r_spread_daily) %in% c("SPY", "QQQ")]
@@ -216,7 +225,7 @@ max_lookbacks <- sapply(life_to_date, function(ltd){
 rtn_colnames <- paste0(c(names(lookbacks), "Since Inception/1980"), " Return")
 rtn_ann_colnames <- paste0(c(names(lookbacks), "Since Inception/1980"), " Return(Annualized)")
 sharpe_colnames <- paste0(c(names(lookbacks), "Since Inception/1980"), " Sharpe")
-cor_colnames <- paste0(corr_tks, "correlation")
+cor_colnames <- paste0(corr_tks, " correlation(3Y)")
 
 stats_colnames <- c(
   "Ticker",
@@ -407,21 +416,20 @@ stats_df[, "Distance to 1Y Mean +1SD Target Price"] <- toPercent(calc_dist_to_go
 stats_df[, "Distance to 1Y Mean Target Price (1Y Ago Lagged)"] <- toPercent(calc_dist_to_goal(prices, tp_mean_lag), plus_sign=TRUE)
 
 # add in close to high prices
-CLOSE_TO_HIGH_AND_OPEN_THRESHOLDS <- c(0.5, 0.75, 1, 1.5, 2)
+CLOSE_TO_HIGH_AND_OPEN_THRESHOLDS <- c(0.5, 0.75, 1, 1.5, 2) # 0.5 here represents 0.5%
 r_hi_daily <- r_hi_daily[, !colnames(r_hi_daily) %in% c("SPY", "QQQ")]
 r_hi_daily <- r_hi_daily[index(r_hi_daily) >= high_to_close_start_date]
 for (val in CLOSE_TO_HIGH_AND_OPEN_THRESHOLDS) {
-  stats_df[, paste0("% of Days Close T-1 to High T > ", val, " Since ", high_to_close_start_date)] <- toPercent(colSums(r_hi_daily >= val, na.rm=T) / colSums(!is.na(r_hi_daily)))
+  stats_df[, paste0("% of Days Close T-1 to High T > ", val, " Since ", high_to_close_start_date)] <- toPercent(colSums(r_hi_daily >= val/100, na.rm=T) / colSums(!is.na(r_hi_daily)))
 }
 r_open_daily <- r_open_daily[, !colnames(r_open_daily) %in% c("SPY", "QQQ")]
 r_open_daily <- r_open_daily[index(r_open_daily) >= high_to_close_start_date]
 for (val in CLOSE_TO_HIGH_AND_OPEN_THRESHOLDS) {
-  stats_df[, paste0("% of Days Close T-1 to Open T > ", val, " Since ", high_to_close_start_date)] <- toPercent(colSums(r_open_daily >= val, na.rm=T) / colSums(!is.na(r_hi_daily)))
+  stats_df[, paste0("% of Days Close T-1 to Open T > ", val, " Since ", high_to_close_start_date)] <- toPercent(colSums(r_open_daily >= val/100, na.rm=T) / colSums(!is.na(r_hi_daily)))
 }
 
 stats_df[, paste0("1M Median Daily Return")] <- toPercent(colMedians(last(r_daily[, !colnames(r_daily) %in% c("SPY", "QQQ")], "1 month"), na.rm=T))
 stats_df[, paste0("3M Median Daily Return")] <- toPercent(colMedians(last(r_daily[, !colnames(r_daily) %in% c("SPY", "QQQ")], "3 months"), na.rm=T))
-
 stats_df[, paste0("Lifetime Mean Daily Spread")] <- toPercent(colMeans(r_spread_daily, na.rm=T))
 stats_df[, paste0("3M Mean Daily Spread")] <- toPercent(colMeans(last(r_spread_daily, "3 months"), na.rm=T))
 stats_df[, paste0("3M Mean Weekly Spread")] <- toPercent(colMeans(last(rolling_spread_weekly, "3 months"), na.rm=T))
@@ -445,6 +453,7 @@ last_data_row = last(prices)
 last_data_date = index(last_data_row)[1]
 last_data_row = last_data_row[, !colnames(last_data_row) %in% c("SPY", "QQQ")]
 stats_df[, paste0("Close Price on ", last_data_date)] = t(last_data_row)
+
 # Add max_lookbacks to df
 stats_df[, "max_lookbacks"] <- max_lookbacks[stats_df[, "Ticker"]]
 
@@ -491,11 +500,26 @@ stats_df[, "EPS"] <- sapply(stats_df[, "Ticker"], function(tk) {
 })
 
 # Add Market Cap
-stats_df[, "Market Cap"] <- sapply(stats_df[, "Ticker"], function(tk) {
-  if(is.null(market_cap[tk])) NA else toDecimalPlaces(market_cap[tk], 2)
+stats_df[, "Market Cap (BN)"] <- sapply(stats_df[, "Ticker"], function(tk) {
+  if(is.null(market_cap[tk])) NA else toDecimalPlaces(market_cap[tk]/1000000000, 2)
 })
 
-
+# Add Quantile Rtns (aka "XX 95% Confidence YY Rtn")
+confidence <- 0.95
+prob <- 1 - confidence
+use_lookbacks <- c("3M", "1M")
+use_rtns <- list(r_daily, r_hi_daily)
+names(use_rtns) <- c("Cl-to-Cl 1D Rtn", "Cl-to-Hi 1D Rtn")
+for (rtn_name in names(use_rtns)) {
+  for (lb in use_lookbacks) {
+    stat_name <- paste(lb, toPercent(confidence, digits=0), "Confidence", rtn_name)
+    stats_df[, stat_name] <- sapply(stats_df[, "Ticker"], function(tk) {
+      rtns_lb <- tail(use_rtns[[rtn_name]][, tk], lookbacks[lb])
+      res <- quantile(rtns_lb, probs=prob, na.rm=TRUE)
+      toPercent(res)
+    })
+  }
+}
 
 # Formatting ------------------------------------------------------------
 # rank by 3M Sharpe. This should be done before the ranking column get further formatted(become str)
@@ -564,34 +588,43 @@ colnames(stats_df)[colnames(stats_df) %in% ann_rtn_colnames_less_1y] <- paste0(a
 
 # drop undesired columns
 # keep 3Y Return
-rtn_colnames_gteq_1y_to_del <- rtn_colnames_gteq_1y[rtn_colnames_gteq_1y != '3Y Return']
+rtn_colnames_gteq_1y_to_del <- rtn_colnames_gteq_1y[rtn_colnames_gteq_1y != "3Y Return"]
 stats_df <- stats_df[, colnames(stats_df) != "Avg Sharpe"]
 stats_df <- stats_df[, colnames(stats_df) != "max_lookbacks"]
 stats_df <- stats_df[, !(names(stats_df) %in% rtn_colnames_gteq_1y_to_del)]
 stats_df <- stats_df[, !(names(stats_df) %in% rtn_colnames_less_1y)]
 
+# duplicate specific columns for ease of reference
+cols_to_dup <- c(paste0("% of Days Close T-1 to High T > 1 Since ", high_to_close_start_date),
+                 paste0("% of Days Close T-1 to High T > 1.5 Since ", high_to_close_start_date))
+for (col in cols_to_dup) {
+  stats_df[, paste0(col, "_")] <- stats_df[, col]
+}
+
 # rearrange columns
 stats_df <- move_col_after(stats_df, paste0("Close Price on ", last_data_date), "Ticker")
-stats_df <- move_col_after(stats_df, 'Market Cap', paste0("Close Price on ", last_data_date))
-#stats_df <- move_col_after(stats_df, 'Market Cap Jan 1, 2021', 'Market Cap')
-#stats_df <- move_col_after(stats_df, '# of Market Cap Doublings, Last 3Y', 'Market Cap Jan 1, 2021')
-#stats_df <- move_col_after(stats_df, 'Avg. Time to Market Cap Doubling, Last 3Y', '# of Market Cap Doublings, Last 3Y')
-#stats_df <- move_col_after(stats_df, '3Y Total Return', 'Avg. Time to Market Cap Doubling, Last 3Y')
-stats_df <- move_col_after(stats_df, '3Y Return', 'Market Cap')
-stats_df <- move_col_after(stats_df, '3Y Annualized Return {Sharpe}', '3Y Return')
-stats_df <- move_col_after(stats_df, '1Y Annualized Return {Sharpe}', '3Y Annualized Return {Sharpe}')
+stats_df <- move_col_after(stats_df, "Market Cap (BN)", paste0("Close Price on ", last_data_date))
+stats_df <- move_col_after(stats_df, "3Y Return", "Market Cap (BN)")
+stats_df <- move_col_after(stats_df, "3Y Annualized Return {Sharpe}", "3Y Return")
+stats_df <- move_col_after(stats_df, "1Y Annualized Return {Sharpe}", "3Y Annualized Return {Sharpe}")
 stats_df <- move_col_after(stats_df, "EPS", "1Y Annualized Return {Sharpe}")
-stats_df <- move_col_after(stats_df, "SPYcorrelation", "EPS")
-stats_df <- move_col_after(stats_df, "QQQcorrelation", "SPYcorrelation")
-stats_df <- move_col_after(stats_df, 'Outperformance/Underperformance vs QQQ, 3M', 'QQQcorrelation')
-stats_df <- move_col_after(stats_df, '3M Sharpe', 'Outperformance/Underperformance vs QQQ, 3M')
-stats_df <- move_col_after(stats_df, "3M Median Daily Return", '3M Sharpe')
+stats_df <- move_col_after(stats_df, "SPY correlation(3Y)", "EPS")
+stats_df <- move_col_after(stats_df, "QQQ correlation(3Y)", "SPY correlation(3Y)")
+stats_df <- move_col_after(stats_df, "Outperformance/Underperformance vs QQQ, 3M", "QQQ correlation(3Y)")
+stats_df <- move_col_after(stats_df, "3M Sharpe", "Outperformance/Underperformance vs QQQ, 3M")
+stats_df <- move_col_after(stats_df, "3M Median Daily Return", "3M Sharpe")
 stats_df <- move_col_after(stats_df, "1M Median Daily Return", "3M Median Daily Return")
-stats_df <- move_col_after(stats_df, "Lifetime Mean Daily Spread", "1M Median Daily Return")
-stats_df <- move_col_after(stats_df, "3M Mean Daily Spread", "Lifetime Mean Daily Spread")
-stats_df <- move_col_after(stats_df, "3M Mean Weekly Spread", "3M Mean Daily Spread")
-stats_df <- move_col_after(stats_df, "6M Mean Monthly Spread", "3M Mean Weekly Spread")
-stats_df <- move_col_after(stats_df, "Weekly Spread > 10% (Last 3M)", "6M Mean Monthly Spread")
+stats_df <- move_col_after(
+  stats_df,
+  paste0("% of Days Close T-1 to High T > 1 Since ", high_to_close_start_date, "_"),
+  "1M Median Daily Return"
+)
+stats_df <- move_col_after(
+  stats_df,
+  paste0("% of Days Close T-1 to High T > 1.5 Since ", high_to_close_start_date, "_"),
+  paste0("% of Days Close T-1 to High T > 1 Since ", high_to_close_start_date, "_")
+)
+stats_df <- move_col_after(stats_df, "Weekly Spread > 10% (Last 3M)", paste0("% of Days Close T-1 to High T > 1.5 Since ", high_to_close_start_date, "_"))
 stats_df <- move_col_after(stats_df, "% of Time > 10% Within 1M (Last 3Y)", "Weekly Spread > 10% (Last 3M)")
 stats_df <- move_col_after(stats_df, "Avg Annualized Returns", "Weekly Spread > 10% (Last 3M)")
 stats_df <- move_col_after(stats_df, "Distance to 52-Week High", "Avg Annualized Returns")
@@ -605,36 +638,12 @@ stats_df <- move_col_after(stats_df, "Price Relative to 50D SMA", "Price Relativ
 stats_df <- move_col_after(stats_df, "Beta up to 3yr", "Price Relative to 50D SMA")
 stats_df <- move_col_after(stats_df, "Since Jan 1998 Annualized Return {Sharpe}", "Since Inception/1980 Sharpe")
 stats_df <- move_col_after(stats_df, "Since Jan 1998 Sharpe", "Since Jan 1998 Annualized Return {Sharpe}")
-stats_df <- move_col_after(stats_df, "SPYcorrelation", "EPS")
+
+stats_df <- move_col_after(stats_df, "Lifetime Mean Daily Spread", "Monthly Spread > 10% (Last 6M)")
+stats_df <- move_col_after(stats_df, "3M Mean Daily Spread", "Lifetime Mean Daily Spread")
+stats_df <- move_col_after(stats_df, "3M Mean Weekly Spread", "3M Mean Daily Spread")
+stats_df <- move_col_after(stats_df, "6M Mean Monthly Spread", "3M Mean Weekly Spread")
+
 
 # Write output to file --------------------------------
 write.table(stats_df, outfile, sep=",", row.names=FALSE)
-
-
-# # Creating a workbook using the XLSX package.
-# wb <- xlsx::createWorkbook(type="xlsx")
-# 
-# # Creating a sheet inside the workbook.
-# sheet <- xlsx::createSheet(wb, sheetName="Sheet0")
-# 
-# # Adding the full dataset into the sheet.
-# xlsx::addDataFrame(stats_df, sheet, startRow=1, startCol=1, row.names=FALSE, col.names=TRUE)
-# 
-# # Creating cell style needed to left-justify text.
-# cs <- CellStyle(wb) + Alignment(horizontal="ALIGN_CENTER", vertical="VERTICAL_CENTER")
-# 
-# # Selecting rows to apply cell style to.
-# all.rows <- getRows(sheet, rowIndex=1:(NROW(stats_df)+1))
-# 
-# # Selecting cells within selected rows to apply cell style to.
-# all.cells <- getCells(all.rows)
-# 
-# # Applying cell style to selected cells.
-# invisible(lapply(all.cells, setCellStyle, cs))
-# 
-# # 
-# setColumnWidth(sheet, colIndex=1:NCOL(stats_df), colWidth=60)
-# 
-# # Saving the workbook.
-# xlsx::saveWorkbook(wb, paste0(OUTPUT_PATH, outfile_name, ".xlsx"))
-# 
