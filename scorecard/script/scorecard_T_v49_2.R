@@ -594,7 +594,7 @@ stats_df <- stats_df[, colnames(stats_df) != "max_lookbacks"]
 stats_df <- stats_df[, !(names(stats_df) %in% rtn_colnames_gteq_1y_to_del)]
 stats_df <- stats_df[, !(names(stats_df) %in% rtn_colnames_less_1y)]
 
-# duplicate specific columns
+# duplicate specific columns for ease of reference
 cols_to_dup <- c(paste0("% of Days Close T-1 to High T > 1 Since ", high_to_close_start_date),
                  paste0("% of Days Close T-1 to High T > 1.5 Since ", high_to_close_start_date))
 for (col in cols_to_dup) {
