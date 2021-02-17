@@ -9,7 +9,7 @@ BASKET_NAME = 'scorecard_single_ticker'
 TICKER_PATH = BASKET_PATH / '{}.csv'.format(BASKET_NAME)
 
 
-def load_bucket_prices(start, end):
+def load_bucket_prices(project_root, start, end):
     """
     Returns all available data types from `start` to `end` for the tickers
     specified in `scorecard/data/scorecard_single_ticker.csv'. Data is either
@@ -17,10 +17,12 @@ def load_bucket_prices(start, end):
 
     Basket can be made a parameter in future.
     """
+    if isinstance(project_root, str):
+        project_root = Path(project_root)
     price_filename = f'prc_{BASKET_NAME}_{start}_{end}_Y.csv'
-    price_filepath = DATA_PATH / price_filename
+    price_filepath = project_root / DATA_PATH / price_filename
 
-    tickers = pd.read_csv(TICKER_PATH, header=None,
+    tickers = pd.read_csv(project_root / TICKER_PATH, header=None,
                           names=['Ticker'], squeeze=True)
 
     if Path(price_filepath).exists():
