@@ -182,14 +182,22 @@ market_cap <- unlist(lapply(market_cap_list, function(tk) {
   if(NROW(tk) == 0) return(NULL) else return(tail(tk[, "Market Capitalization"], 1))
 }))
 
-# Calc returns
-r_daily <- lapply(prices, function(tk) {
-  temp <- dailyReturn(tk)
-  colnames(temp) <- names(tk)
-  temp
-})
-r_daily <- do.call(merge, r_daily)
+# calc rolling high/low prices
+cat("\nCalculating rolling Hi/Lo prices...")
+# rolling week high prices
+rolling_high_weekly <- rollapply(hiprices, width=5, FUN=max)
+# rolling week low prices
+rolling_low_weekly <- rollapply(loprices, width=5, FUN=min)
+# rolling month high prices
+rolling_high_monthly <- rollapply(hiprices, width=22, FUN=max)
+# rolling month low prices
+rolling_low_monthly <- rollapply(loprices, width=22, FUN=min)
+cat("Done.")
 
+# Calc returns
+cat("\nCalculating stock returns...")
+# cl to cl rtns
+r_daily <- (prices - lag(prices)) / lag(prices)
 # Calc close to high returns
 r_hi_daily <- (hiprices - lag(prices)) / lag(prices)
 # Calc close to open returns
@@ -197,20 +205,17 @@ r_open_daily <- (openprices - lag(prices)) / lag(prices)
 # calc daily spread as a ratio of close price
 r_spread_daily <- ((hiprices - loprices)) / prices
 r_spread_daily <- r_spread_daily[, !colnames(r_spread_daily) %in% c("SPY", "QQQ")]
-# rolling week high prices
-rolling_high_weekly <-rollapply(hiprices, width=5, FUN = max)
-# rolling week low prices
-rolling_low_weekly <-rollapply(loprices, width=5, FUN = min)
-# rolling month high prices
-rolling_high_monthly <-rollapply(hiprices, width=22, FUN = max)
-# rolling month low prices
-rolling_low_monthly <-rollapply(loprices, width=22, FUN = min)
+# calc close to rolling_high_weekly weekly returns
+r_cl_to_roll_hi_wkly <- (rolling_high_weekly - lag(prices, 5)) / lag(prices, 5)
+# calc rolling spreads
 rolling_spread_weekly <- (rolling_high_weekly - rolling_low_weekly) / prices
 rolling_spread_weekly <- rolling_spread_weekly[, !colnames(rolling_spread_weekly) %in% c("SPY", "QQQ")]
 rolling_spread_monthly <- (rolling_high_monthly - rolling_low_monthly) / prices
 rolling_spread_monthly <- rolling_spread_monthly[, !colnames(rolling_spread_monthly) %in% c("SPY", "QQQ")]
+cat("Done.")
 
 # Calc Inception to date(life_to_date)
+cat("\nCalaulating lengths of stock history...")
 inceptions <- sapply(prices, function(tk){min(which(!is.na(tk)))})
 life_to_date <- NROW(prices) - inceptions
 max_lookbacks <- sapply(life_to_date, function(ltd){
@@ -219,9 +224,11 @@ max_lookbacks <- sapply(life_to_date, function(ltd){
   largest_idx <- max(which(ltd_vs_lookbacks))
   return(names(sorted_lookbacks[largest_idx]))
 })
+cat("Done.")
 
 
 # Statistics Container ------------------------------
+cat("\nCalculating statistics...\n")
 rtn_colnames <- paste0(c(names(lookbacks), "Since Inception/1980"), " Return")
 rtn_ann_colnames <- paste0(c(names(lookbacks), "Since Inception/1980"), " Return(Annualized)")
 sharpe_colnames <- paste0(c(names(lookbacks), "Since Inception/1980"), " Sharpe")
@@ -504,24 +511,30 @@ stats_df[, "Market Cap (BN)"] <- sapply(stats_df[, "Ticker"], function(tk) {
   if(is.null(market_cap[tk])) NA else toDecimalPlaces(market_cap[tk]/1000000000, 2)
 })
 
-# Add Quantile Rtns (aka "XX 95% Confidence YY Rtn")
-confidence <- 0.95
-prob <- 1 - confidence
-use_lookbacks <- c("3M", "1M")
-use_rtns <- list(r_daily, r_hi_daily)
-names(use_rtns) <- c("Cl-to-Cl 1D Rtn", "Cl-to-Hi 1D Rtn")
-for (rtn_name in names(use_rtns)) {
-  for (lb in use_lookbacks) {
-    stat_name <- paste(lb, toPercent(confidence, digits=0), "Confidence", rtn_name)
-    stats_df[, stat_name] <- sapply(stats_df[, "Ticker"], function(tk) {
-      rtns_lb <- tail(use_rtns[[rtn_name]][, tk], lookbacks[lb])
-      res <- quantile(rtns_lb, probs=prob, na.rm=TRUE)
-      toPercent(res)
-    })
+# Add Quantile Rtns (aka "XX YY% Confidence ZZ Rtn")
+confidence_vals <- c(0.95, 0.90)
+for (confidence in confidence_vals) {
+  prob <- 1 - confidence
+  use_lookbacks <- c("3M", "1M")
+  use_rtns <- list(r_daily, r_hi_daily, r_cl_to_roll_hi_wkly)
+  names(use_rtns) <- c("Cl-to-Cl 1D Rtn", "Cl-to-Hi 1D Rtn", "Cl-to-Rolling-1W-Hi 1W Rtn")
+  for (rtn_name in names(use_rtns)) {
+    for (lb in use_lookbacks) {
+      stat_name <- paste(lb, toPercent(confidence, digits=0), "Confidence", rtn_name)
+      stats_df[, stat_name] <- sapply(stats_df[, "Ticker"], function(tk) {
+        rtns_lb <- tail(use_rtns[[rtn_name]][, tk], lookbacks[lb])
+        res <- quantile(rtns_lb, probs=prob, na.rm=TRUE)
+        toPercent(res)
+      })
+    }
   }
 }
 
+
+cat("Done.")
+
 # Formatting ------------------------------------------------------------
+cat("Formatting...")
 # rank by 3M Sharpe. This should be done before the ranking column get further formatted(become str)
 stats_df <- stats_df[order(stats_df[, "3M Sharpe"], decreasing=T),]
 
@@ -644,6 +657,9 @@ stats_df <- move_col_after(stats_df, "3M Mean Daily Spread", "Lifetime Mean Dail
 stats_df <- move_col_after(stats_df, "3M Mean Weekly Spread", "3M Mean Daily Spread")
 stats_df <- move_col_after(stats_df, "6M Mean Monthly Spread", "3M Mean Weekly Spread")
 
-
+cat("Done.\n")
 # Write output to file --------------------------------
+cat("Writing results to: ",outfile,"...")
 write.table(stats_df, outfile, sep=",", row.names=FALSE)
+cat("Done.\n")
+cat("\nAll done!\n")
