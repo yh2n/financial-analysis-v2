@@ -24,8 +24,8 @@ version <- "v5"
 tickers <- c("SHOP", "ROKU", "SPWR")
 start <- "2011-01-01"
 end <- "2021-02-12"
-entry_exit <- list(c(0, 1), c(0, 5))
-names(entry_exit) <- sapply(entry_exit, function(i){paste0("(", i[1], ", ", i[2], ")")})
+entry_exit_points <- list(c(0, 1), c(0, 5))
+names(entry_exit_points) <- sapply(entry_exit_points, function(i){paste0("(", i[1], ", ", i[2], ")")})
 
 
 # Data -----------------------------------------
@@ -50,29 +50,29 @@ earnings_dates <- lapply(earnings, function(e) {
 
 
 # Core ----------------------------------------
-strategy <- function(p, e, entry_exit, latest_first=TRUE) {
+strategy <- function(prices, earnings_dates, entry_exit_points, latest_first=TRUE) {
   # convert index type from POSIXct to Date
-  index(p) <- as.Date(index(p))
+  index(prices) <- as.Date(index(prices))
   
   # for each entry_exit pair, return a list of returns on earnings dates
-  rtns_list <- lapply(entry_exit, function(i) {
+  rtns_list <- lapply(entry_exit_points, function(i) {
     # current entry & exit offset
     entry_offset <- i[1]
     exit_offset <- i[2]
     
     # calculate return for each earnings date
-    rtns <- sapply(e, function(e_i) {
+    rtns <- sapply(earnings_dates, function(e_i) {
       # find out index of earnings date in price series
-      earnings_date_idx <- which(index(p) == e_i)
+      earnings_date_idx <- which(index(prices) == e_i)
       if(length(earnings_date_idx) == 0) {
         return(NA_real_)
       }
       entry_idx <- earnings_date_idx + entry_offset
       exit_idx <- earnings_date_idx + exit_offset
-      if(entry_idx < 1 || exit_idx > NROW(p))  {
+      if(entry_idx < 1 || exit_idx > NROW(prices))  {
         return(NA_real_)
       }
-      return(as.numeric(Cl(p)[exit_idx]) / as.numeric(Cl(p)[entry_idx]) - 1)
+      return(as.numeric(Cl(prices)[exit_idx]) / as.numeric(Cl(prices)[entry_idx]) - 1)
     })
     
     # calculate calendar days to recover
@@ -87,14 +87,14 @@ strategy <- function(p, e, entry_exit, latest_first=TRUE) {
         if(rtns[j] >= 0) {
           return(0)
         }
-        entry_idx <- which(index(p) == e[j]) + entry_offset
-        exit_idx <- which(index(p) == e[j]) + exit_offset
-        p_entry <- as.numeric(Cl(p)[entry_idx])
-        recover_idx <- which(f(p)[(exit_idx+1):NROW(p)] > p_entry)
+        entry_idx <- which(index(prices) == earnings_dates[j]) + entry_offset
+        exit_idx <- which(index(prices) == earnings_dates[j]) + exit_offset
+        p_entry <- as.numeric(Cl(prices)[entry_idx])
+        recover_idx <- which(f(prices)[(exit_idx+1):NROW(prices)] > p_entry)
         if(length(recover_idx) == 0) {
           return(-1)
         }
-        return(as.numeric(index(p[exit_idx + min(recover_idx)]) - index(p[exit_idx])))
+        return(as.numeric(index(prices[exit_idx + min(recover_idx)]) - index(prices[exit_idx])))
       })
     }
     cal_days_to_recover_cl <- calc_d2recover(Cl)
@@ -104,9 +104,9 @@ strategy <- function(p, e, entry_exit, latest_first=TRUE) {
   })
   
   # create result data.frame
-  df <- data.frame(e, rtns_list, stringsAsFactors=FALSE)
+  df <- data.frame(earnings_dates, rtns_list, stringsAsFactors=FALSE)
   colnames(df) <- c("Earnings Date",
-                    sapply(names(entry_exit), function(i){
+                    sapply(names(entry_exit_points), function(i){
                       c(i, paste0("cal_days_to_recover_cl", i), paste0("cal_days_to_recover_hi", i))})
                     )
   if(latest_first) df <- df[dim(df)[1]:1, ] # reverse df if latest_first==TRUE
@@ -117,11 +117,11 @@ strategy <- function(p, e, entry_exit, latest_first=TRUE) {
 cat("Calculating... ")
 summary_table <- sapply(tickers, function(tk) {
   # calc returns for tk
-  df <- strategy(p=prices[[tk]], e=earnings_dates[[tk]], entry_exit=entry_exit, latest_first=TRUE)
+  df <- strategy(prices=prices[[tk]], earnings_dates=earnings_dates[[tk]], entry_exit_points=entry_exit_points, latest_first=TRUE)
   
   # calc summary statistics for each entry_exit pair
-  stats_list <- lapply(names(entry_exit), function(i) {
-    holding_len <- entry_exit[[i]][2] - entry_exit[[i]][1]
+  stats_list <- lapply(names(entry_exit_points), function(i) {
+    holding_len <- entry_exit_points[[i]][2] - entry_exit_points[[i]][1]
     min_rtn <- min(df[, i], na.rm=TRUE)
     max_rtn <- max(df[, i], na.rm=TRUE)
     med_rtn <- median(df[, i], na.rm=TRUE)
@@ -163,7 +163,7 @@ summary_table <- sapply(tickers, function(tk) {
   names(stats) <- as.vector(do.call(rbind, lapply(stats_list, names)))
   
   # format and write trade details to csv for tk
-  df[, names(entry_exit)] <- toPercent(df[, names(entry_exit)])
+  df[, names(entry_exit_points)] <- toPercent(df[, names(entry_exit_points)])
   
   df_output_path <- paste0(OUTPUT_PATH, paste("rtns", tk, start, end, version, sep="_"), ".csv")
   write.table(df, df_output_path, sep=",", row.names=FALSE)
@@ -177,7 +177,7 @@ target_rows <- c("Median Calendar Days to Recover(Negative Trades)(Cl)",
                   "Max Calendar Days to Recover(Negative Trades)(Cl)",
                   "Max Calendar Days to Recover(Negative Trades)(Hi)")
 old_seq_idx <- as.vector(sapply(target_rows, grep, x=rownames(summary_table), fixed=TRUE))
-new_seq <- as.vector(sapply(names(entry_exit), function(i){paste0(target_rows, " ", i)}))
+new_seq <- as.vector(sapply(names(entry_exit_points), function(i){paste0(target_rows, " ", i)}))
 summary_table[old_seq_idx, ] <- summary_table[new_seq, ]
 rownames(summary_table)[old_seq_idx] <- new_seq
 
