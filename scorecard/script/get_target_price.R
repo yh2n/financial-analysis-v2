@@ -45,7 +45,9 @@ get_all_target_price <- function(tickers, start, end, api_key=NULL) {
   cat("\nDownloading target prices from Quandl - Zacks/TP... ")
   df_list <- lapply(tickers, function(tk) {
     df <- Quandl.datatable("ZACKS/TP", obs_date.gte=start, obs_date.lte=end, ticker=tk)
-    if(NROW(df)==0) warning(paste0(tk, " returned 0 rows of TP data with the given date range."))
+    if(NROW(df) == 0) {
+      warning(tk, " returned 0 rows of TP data with given date range [", start, ", ", end, "].")
+    }
     return(df)
   })
   names(df_list) <- tickers

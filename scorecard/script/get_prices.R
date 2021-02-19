@@ -79,29 +79,17 @@ get_all_prices <- function(tickers, start, end, datasource="T", out_path=NULL, s
   # download from source 
   if(datasource == "T") {
     cat("Downloading from Tiingo ... ")
-    # inception dates(for fixing yahoo data)
-    inception_dates <- c(
-      DOMO = "2018-06-29",
-      PS = "2018-05-17",
-      SMAR = "2018-04-27",
-      TWLO = "2016-06-23",
-      ZUO = "2018-04-12",
-      MB = "2015-06-22",
-      GDDY = "2015-04-16",
-      HDP = "2014-12-15",
-      SHOP = "2015-05-22",
-      TEAM = "2015-12-16",
-      PD = "2019-04-12",
-      U = "2020-09-18"
-    )
-
     api_key <- '9a73b39f64bb2c32bbc0a52fb5ff970c2929f241'
     # download prices into list
     price_list <- lapply(tickers, function(tk) {
+      # replace "." with "-" according to tiingo symbology
+      tk <- gsub("[.]", "-", tk)
       price <- getSymbols(tk, src="tiingo",from=start, to=end,
                           auto.assign=FALSE, api.key=api_key, adjust=TRUE)
-      if(tk %in% names(inception_dates)) price <- price[paste0(inception_dates[tk], "/"), ]
-      if(length(price) == 0) stop(tk, " has no data during selected period")
+      # if(tk %in% names(inception_dates)) price <- price[paste0(inception_dates[tk], "/"), ]
+      if(length(price) == 0) {
+        stop(tk, " returned 0 rows of OHLC data with given date range [", start, ", ", end, "].")
+      }
       return(price)
     })
     names(price_list) <- tickers
@@ -121,38 +109,3 @@ get_all_prices <- function(tickers, start, end, datasource="T", out_path=NULL, s
   
   return(price_list)
 }
-
-# 
-# # get high prices (will be merged into get_prices in future)
-# get_high_prices <- function(tickers, start, end, datasource="Y", outfile=NULL, sort_tks=FALSE, py_path="./script/") {
-#   # download prices from source
-#   price_list <- get_all_prices(tickers, start, end, datasource, out_path=NULL, sort_tks=sort_tks, py_path=py_path)
-#   prices <- do.call(cbind, lapply(price_list, FUN=Hi))
-#   colnames(prices) <- names(price_list)
-#   
-#   # prices validation and cleaning -------------------------------------------------------
-#   # NA handling: fill gaps with first available price from future
-#   cat("Cleaning...")
-#   for(tk in tickers) {
-#     # find first and last trading day
-#     first_day <- min(which(!is.na(prices[, tk])))
-#     last_day <- max(which(!is.na(prices[, tk])))
-#     
-#     # print the gap
-#     if(anyNA(prices[first_day:last_day, tk])) {
-#       cat("\nGaps found and filled in ", tk, " : \n")
-#       print(paste(index(prices[which(is.na(prices[first_day:last_day, tk]))+first_day-1, tk])))
-#       # fill gap with the most recent price available
-#       prices[first_day:last_day, tk] <- na.locf(prices[first_day:last_day, tk], fromLast=FALSE)
-#     }
-#   }
-#   
-#   # if outfile specified, save into file --------------------------------------------------
-#   if(!is.null(outfile)) {
-#     write.zoo(prices, file=outfile, sep=",")
-#     cat("\nData cleaned and saved in ", '"', outfile, '"')
-#   } else {
-#     cat("Done.\n")
-#   }
-#   return(prices)
-# }
