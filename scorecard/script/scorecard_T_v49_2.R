@@ -105,8 +105,6 @@ high_to_close_start_date <- "2020-11-03"
 DDthreshold <- 20
 downSize <- 0.0025
 corr_tks <- c("SPY", "QQQ")
-corrLength <- 756
-n2years <- 504
 jan1998_td <- businessDaysBetween("UnitedStates/NYSE", as.Date("1998-01-01"), as.Date(end_date))
 lookbacks <- c(10, 21, 3*21, 6*21, 1*252, 3*252, 5*252, 10*252, 15*252, jan1998_td)
 names(lookbacks) <- c("2W", "1M", "3M", "6M", "1Y", "3Y", "5Y", "10Y", "15Y", "Since Jan 1998")
@@ -115,8 +113,9 @@ period_gteq_1y <- c("15Y", "10Y", "5Y", "3Y", "1Y", "Since Jan 1998", "Since Inc
 period_less_1y <- names(lookbacks)[!(names(lookbacks) %in% period_gteq_1y)]
 
 if(TESTING_MODE) {
-  end_date <- "2021-02-11"
+  end_date <- "2021-02-17"
   basket <- "scorecard_single_ticker_TESTING_ONLY"
+  # basket <- "scorecard_single_ticker"
 }
 
 # tickers 
@@ -228,16 +227,14 @@ cat("Done.")
 
 
 # Statistics Container ------------------------------
-cat("\nCalculating statistics...\n")
+cat("\nCalculating statistics...")
 rtn_colnames <- paste0(c(names(lookbacks), "Since Inception/1980"), " Return")
 rtn_ann_colnames <- paste0(c(names(lookbacks), "Since Inception/1980"), " Return(Annualized)")
 sharpe_colnames <- paste0(c(names(lookbacks), "Since Inception/1980"), " Sharpe")
-cor_colnames <- paste0(corr_tks, " correlation(3Y)")
 
 stats_colnames <- c(
   "Ticker",
   as.vector(rbind(rtn_colnames, rtn_ann_colnames, sharpe_colnames)), 
-  cor_colnames,
   "N 20+days UP Periods",
   "Beta Up",
   "N 20+days DOWN Periods",
@@ -248,7 +245,6 @@ stats_colnames <- c(
 stats_colClasses <- c(
   "character",
   rep("numeric", length(c(rtn_colnames, rtn_ann_colnames, sharpe_colnames))),
-  rep("numeric", length(cor_colnames)),
   "character",
   "character",
   "character",
@@ -262,51 +258,36 @@ stats_df <- read.csv(
 
 
 # Backtesting for every tickers ----------------
-cor_start <- NROW(prices) - corrLength
-
 for(k in tkr_list) {
-  iv <- cor_start # fixed bug changed results
-  im <- min(which(!is.na(r_daily[,k]))) # if available length smaller than corrLength, use whatever there are
-  if(iv < im) iv <- im
-  vol <- as.numeric(sd(r_daily[iv:NROW(prices),k], na.rm=TRUE))
-  
-  # Calc returns and sharpe ratios
   lookbacks_k <- c(lookbacks, life_to_date[k])
   names(lookbacks_k)[length(lookbacks_k)] <- "Since Inception/1980"
-  
   lb_start <- NROW(prices) - lookbacks_k
-  if(any(lb_start<=0)) stop("Data length shorter than some of the lookbacks")
+  if(any(lb_start<=0)) {
+    stop("Data length shorter than some of the lookbacks")
+  }
   
-  R <- coredata(prices)[NROW(prices), k] / coredata(prices)[lb_start, k] - 1
   
-  # annualized(arithmetic mean) return and sharpe
-  Ra <- R * 252 / lookbacks_k
-  Sh <- R / (lookbacks_k*vol)*sqrt(252)
+  # Calc lookback total returns and annualized arithmetic returns
+  R_tot <- coredata(prices)[NROW(prices), k] / coredata(prices)[lb_start, k] - 1
+  Ra <- R_tot * 252 / lookbacks_k
   
-  # use geometric mean to annualize for periods longer than 1Y except for "since inception"
+  # use annualized geometric rtn for periods > 1Y except for "Since inception/1980"
   idx <- which(lookbacks_k > 252 & names(lookbacks_k) != "Since Inception/1980")
-  Ra[idx] <- (1+R[idx])^(252/lookbacks_k[idx]) - 1
-  Sh[idx] <- sapply(lookbacks_k[idx], function(laglen){
-    rr <- tail(r_daily[,k], laglen)
-    if(anyNA(rr)) {
+  Ra[idx] <- (1+R_tot[idx])^(252/lookbacks_k[idx]) - 1
+
+  # Sharpe Ratio
+  Sh <- sapply(lookbacks_k, function(lb) {
+    rtns <- tail(r_daily[, k], lb)
+    if(anyNA(rtns)) {
       return(NA)
     } else {
-      return(mean(rr)/sd(rr)*sqrt(252))
+      return(mean(rtns) / sd(rtns) * sqrt(252))
     }
   })
 
   # Combine results
-  R_Ra_Sh <- as.vector(rbind(R, Ra, Sh))
+  R_Ra_Sh <- as.vector(rbind(R_tot, Ra, Sh))
   
-  # Calc correlations
-  correlations <- sapply(corr_tks, function(tk){
-    cor(
-      x=r_daily[iv:NROW(r_daily), k], 
-      y=r_daily[iv:NROW(r_daily), tk], 
-      use="pairwise.complete.obs"
-    )
-  })
-
   # create a str vector
   str_stats <- character()
   
@@ -368,6 +349,9 @@ for(k in tkr_list) {
   }
   
   # Calc Beta for last three years or starting trading date
+  iv <- NROW(prices) - lookbacks["3Y"] + 1
+  im <- min(which(!is.na(r_daily[, k]))) # if available length < lookback, use whatever there is
+  if(iv < im) iv <- im
   if(NROW(prices) - iv > 10) {
     y <- r_daily[iv:NROW(prices), k]
     x <- r_daily[iv:NROW(prices), "SPY"]
@@ -380,7 +364,7 @@ for(k in tkr_list) {
   }
 
   # Calc percent of Up times during QQQ down for the last two years
-  iv <- NROW(prices) - n2years
+  iv <- NROW(prices) - 504
   if(iv < im){
     iv <- im
   }
@@ -399,13 +383,26 @@ for(k in tkr_list) {
     c(
       list(k),
       as.list(R_Ra_Sh),
-      as.list(correlations),
       as.list(str_stats)
     ), 
     stringsAsFactors=F
   )
   colnames(stats_k_df) <- stats_colnames
   stats_df <- rbind(stats_df, stats_k_df)
+}
+
+# Calc correlations to corr_tks
+for (cor_tk in corr_tks) {
+  cor_lb_name <- "3M"
+  cor_lb <- lookbacks[cor_lb_name]
+  cor_colname <- paste0(cor_tk, " correlation(", cor_lb_name, ")")
+  stats_df[, cor_colname] <- sapply(stats_df[, "Ticker"], function(tk) {
+    r_cor <- tail(r_daily[, c(cor_tk, tk)], cor_lb)
+    cor(x=r_cor[, cor_tk],
+        y=r_cor[, tk],
+        use="pairwise.complete.obs"
+    )
+  })
 }
 
 # Add dist to target prices
@@ -530,7 +527,6 @@ for (confidence in confidence_vals) {
   }
 }
 
-
 cat("Done.")
 
 # Formatting ------------------------------------------------------------
@@ -539,7 +535,9 @@ cat("Formatting...")
 stats_df <- stats_df[order(stats_df[, "3M Sharpe"], decreasing=T),]
 
 # round to 2 decimal places
-to_round <- c("Avg Sharpe", sharpe_colnames, cor_colnames)
+to_round <- c("Avg Sharpe",
+              sharpe_colnames,
+              grep("correlation", names(stats_df), value=TRUE))
 stats_df[, to_round] <- sapply(stats_df[, to_round], toDecimalPlaces)
 
 # convert to dollar
@@ -614,16 +612,16 @@ for (col in cols_to_dup) {
   stats_df[, paste0(col, "_")] <- stats_df[, col]
 }
 
-# rearrange columns
+# reorder columns
 stats_df <- move_col_after(stats_df, paste0("Close Price on ", last_data_date), "Ticker")
 stats_df <- move_col_after(stats_df, "Market Cap (BN)", paste0("Close Price on ", last_data_date))
 stats_df <- move_col_after(stats_df, "3Y Return", "Market Cap (BN)")
 stats_df <- move_col_after(stats_df, "3Y Annualized Return {Sharpe}", "3Y Return")
 stats_df <- move_col_after(stats_df, "1Y Annualized Return {Sharpe}", "3Y Annualized Return {Sharpe}")
 stats_df <- move_col_after(stats_df, "EPS", "1Y Annualized Return {Sharpe}")
-stats_df <- move_col_after(stats_df, "SPY correlation(3Y)", "EPS")
-stats_df <- move_col_after(stats_df, "QQQ correlation(3Y)", "SPY correlation(3Y)")
-stats_df <- move_col_after(stats_df, "Outperformance/Underperformance vs QQQ, 3M", "QQQ correlation(3Y)")
+stats_df <- move_col_after(stats_df, "SPY correlation(3M)", "EPS")
+stats_df <- move_col_after(stats_df, "QQQ correlation(3M)", "SPY correlation(3M)")
+stats_df <- move_col_after(stats_df, "Outperformance/Underperformance vs QQQ, 3M", "QQQ correlation(3M)")
 stats_df <- move_col_after(stats_df, "3M Sharpe", "Outperformance/Underperformance vs QQQ, 3M")
 stats_df <- move_col_after(stats_df, "3M Median Daily Return", "3M Sharpe")
 stats_df <- move_col_after(stats_df, "1M Median Daily Return", "3M Median Daily Return")
