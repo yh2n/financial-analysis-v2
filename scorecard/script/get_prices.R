@@ -79,22 +79,6 @@ get_all_prices <- function(tickers, start, end, datasource="T", out_path=NULL, s
   # download from source 
   if(datasource == "T") {
     cat("Downloading from Tiingo ... ")
-    # # inception dates(for fixing yahoo data)
-    # inception_dates <- c(
-    #   DOMO = "2018-06-29",
-    #   PS = "2018-05-17",
-    #   SMAR = "2018-04-27",
-    #   TWLO = "2016-06-23",
-    #   ZUO = "2018-04-12",
-    #   MB = "2015-06-22",
-    #   GDDY = "2015-04-16",
-    #   HDP = "2014-12-15",
-    #   SHOP = "2015-05-22",
-    #   TEAM = "2015-12-16",
-    #   PD = "2019-04-12",
-    #   U = "2020-09-18"
-    # )
-
     api_key <- '9a73b39f64bb2c32bbc0a52fb5ff970c2929f241'
     # download prices into list
     price_list <- lapply(tickers, function(tk) {
