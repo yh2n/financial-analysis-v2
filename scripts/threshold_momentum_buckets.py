@@ -56,7 +56,7 @@ if __name__ == '__main__':
     end = args.today
 
     output_name = f'threshold_momentum_returns_{start}_to_{end}.csv'
-    prices = load_bucket_prices(start, end)
+    prices = load_bucket_prices('.', start, end)
 
     buckets = bucket_returns_for_thresholds(
         prices['adj_close'], prices['adj_high'])
