@@ -21,7 +21,9 @@ library(quantmod)
 
 
 # Get prices from source and aggregate by type ------------------------------------------
-get_prices <- function(tickers, start, end, types="Cl", datasource="T", outfiles=NULL, sort_tks=FALSE, py_path="./script/") {
+get_prices <- function(tickers, start, end, types="Cl", datasource="T",
+                       outfiles=NULL, sort_tks=FALSE, py_path="./script/",
+                       api_key=NULL) {
   if(!all(types %in% c("Op", "Hi", "Lo", "Cl", "Vo", "Ad"))) {
     stop('"types" of price must be chosen from "Op", "Hi", "Lo", "Cl", "Vo" and "Ad" ')
   }
@@ -29,7 +31,9 @@ get_prices <- function(tickers, start, end, types="Cl", datasource="T", outfiles
     stop("length of types and outfiles must be the same")
   }
   # download from source
-  price_list <- get_all_prices(tickers, start, end, datasource, sort_tks=sort_tks, py_path=py_path)
+  price_list <- get_all_prices(tickers, start, end, datasource,
+                               sort_tks=sort_tks, py_path=py_path,
+                               api_key=api_key)
   
   # aggregate by price type
   price_list_by_type <- lapply(types, function(type) {
@@ -73,13 +77,14 @@ get_prices <- function(tickers, start, end, types="Cl", datasource="T", outfiles
 
 
 # get OHLC data for tickers --------------------------------------------------------
-get_all_prices <- function(tickers, start, end, datasource="T", out_path=NULL, sort_tks=FALSE, py_path="./script/") {
+get_all_prices <- function(tickers, start, end, datasource="T", out_path=NULL,
+                           sort_tks=FALSE, py_path="./script/", api_key=NULL) {
   if(sort_tks) tickers <- sort(tickers)
+  if(is.null(api_key)) api_key <- "9a73b39f64bb2c32bbc0a52fb5ff970c2929f241"
   
   # download from source 
   if(datasource == "T") {
     cat("Downloading from Tiingo ... ")
-    api_key <- '9a73b39f64bb2c32bbc0a52fb5ff970c2929f241'
     # download prices into list
     price_list <- lapply(tickers, function(tk) {
       # replace "." with "-" according to tiingo symbology
