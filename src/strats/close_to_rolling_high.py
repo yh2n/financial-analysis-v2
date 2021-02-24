@@ -13,7 +13,7 @@ def close_to_rolling_high(close_prices, hi_prices):
     return (rolling_high / close_prices.shift(5)) - 1
 
 
-def ctrh_returns(close_prices, hi_prices, top_k):
+def ctrh_returns(close_prices, hi_prices, top_k, dump_period=None):
     """Strategy that takes positions based on close_to_rolling_high (ctrh),
     as calculated above.
 
@@ -30,6 +30,9 @@ def ctrh_returns(close_prices, hi_prices, top_k):
     close_prices : pd.DataFrame
     hi_prices : pd.DataFrame
     top_k : int
+    dump_period : int, optional
+        Maximum number of days to hold a position for. Sells on the
+        `dump_period`th day no matter what. If None, holds indefinitely.
 
     Returns
     -------
@@ -68,13 +71,22 @@ def ctrh_returns(close_prices, hi_prices, top_k):
             highs = hi_prices.loc[day, holdings.index]
             curr_returns = (highs / holdings['buy_prices']) - 1
 
-            selling = holdings.index[curr_returns >= holdings['sell_limits']]
-            still_holding = holdings.index.drop(selling)
-
-            returns.loc[day] = (holdings.loc[selling, 'sell_limits'].mean()
+            selling = set(
+                holdings.index[curr_returns >= holdings['sell_limits']])
+            returns.loc[day] = (holdings.loc[selling, 'sell_limits'].sum()
                                 if len(selling) > 0 else 0)
 
+            if dump_period is not None:
+                dumping = holdings.index[
+                    holdings['days_since_buy'] > dump_period]
+                returns.loc[day] += holding_returns[-1][dumping].sum()
+                selling |= set(dumping)
+
+            returns.loc[day] /= top_k
+
+            still_holding = holdings.index.drop(selling)
             holdings = holdings.drop(selling)
+
             new_buys = top_scoring.drop(
                 still_holding, errors='ignore').head(len(selling))
             holdings.loc[still_holding, 'days_since_buy'] += 1
