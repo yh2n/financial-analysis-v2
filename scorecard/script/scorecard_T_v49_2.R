@@ -185,13 +185,13 @@ market_cap <- unlist(lapply(market_cap_list, function(tk) {
 # calc rolling high/low prices
 cat("\nCalculating rolling Hi/Lo prices...")
 # rolling week high prices
-rolling_high_weekly <- rollapply(hiprices, width=5, FUN=max)
+rolling_high_weekly <- rollapply(hiprices, width=5, FUN=max, align="right")
 # rolling week low prices
-rolling_low_weekly <- rollapply(loprices, width=5, FUN=min)
+rolling_low_weekly <- rollapply(loprices, width=5, FUN=min, align="right")
 # rolling month high prices
-rolling_high_monthly <- rollapply(hiprices, width=22, FUN=max)
+rolling_high_monthly <- rollapply(hiprices, width=22, FUN=max, align="right")
 # rolling month low prices
-rolling_low_monthly <- rollapply(loprices, width=22, FUN=min)
+rolling_low_monthly <- rollapply(loprices, width=22, FUN=min, align="right")
 cat("Done.")
 
 # Calc returns
@@ -513,14 +513,16 @@ stats_df[, "Market Cap (BN)"] <- sapply(stats_df[, "Ticker"], function(tk) {
 confidence_vals <- c(0.95, 0.90)
 for (confidence in confidence_vals) {
   prob <- 1 - confidence
-  use_lookbacks <- c("3M", "1M")
+  use_lookbacks <- lookbacks[c("3M", "1M")]
+  tmp_lookbacks <- c("2M"=2*21)
+  use_lookbacks <- sort(c(use_lookbacks, tmp_lookbacks), decreasing=TRUE)
   use_rtns <- list(r_daily, r_hi_daily, r_cl_to_roll_hi_wkly)
   names(use_rtns) <- c("Cl-to-Cl 1D Rtn", "Cl-to-Hi 1D Rtn", "Cl-to-Rolling-1W-Hi 1W Rtn")
   for (rtn_name in names(use_rtns)) {
-    for (lb in use_lookbacks) {
-      stat_name <- paste(lb, toPercent(confidence, digits=0), "Confidence", rtn_name)
+    for (lb_name in names(use_lookbacks)) {
+      stat_name <- paste(lb_name, toPercent(confidence, digits=0), "Confidence", rtn_name)
       stats_df[, stat_name] <- sapply(stats_df[, "Ticker"], function(tk) {
-        rtns_lb <- tail(use_rtns[[rtn_name]][, tk], lookbacks[lb])
+        rtns_lb <- tail(use_rtns[[rtn_name]][, tk], use_lookbacks[lb_name])
         res <- quantile(rtns_lb, probs=prob, na.rm=TRUE)
         toPercent(res)
       })
@@ -626,16 +628,12 @@ stats_df <- move_col_after(stats_df, "Outperformance/Underperformance vs QQQ, 3M
 stats_df <- move_col_after(stats_df, "3M Sharpe", "Outperformance/Underperformance vs QQQ, 3M")
 stats_df <- move_col_after(stats_df, "3M Median Daily Return", "3M Sharpe")
 stats_df <- move_col_after(stats_df, "1M Median Daily Return", "3M Median Daily Return")
-stats_df <- move_col_after(
-  stats_df,
-  paste0("% of Days Close T-1 to High T > 1 Since ", high_to_close_start_date, "_"),
-  "1M Median Daily Return"
-)
-stats_df <- move_col_after(
-  stats_df,
-  paste0("% of Days Close T-1 to High T > 1.5 Since ", high_to_close_start_date, "_"),
-  paste0("% of Days Close T-1 to High T > 1 Since ", high_to_close_start_date, "_")
-)
+stats_df <- move_col_after(stats_df,
+                           paste0("% of Days Close T-1 to High T > 1 Since ", high_to_close_start_date, "_"),
+                           "1M Median Daily Return")
+stats_df <- move_col_after(stats_df,
+                           paste0("% of Days Close T-1 to High T > 1.5 Since ", high_to_close_start_date, "_"),
+                           paste0("% of Days Close T-1 to High T > 1 Since ", high_to_close_start_date, "_"))
 stats_df <- move_col_after(stats_df, "Weekly Spread > 10% (Last 3M)", paste0("% of Days Close T-1 to High T > 1.5 Since ", high_to_close_start_date, "_"))
 stats_df <- move_col_after(stats_df, "% of Time > 10% Within 1M (Last 3Y)", "Weekly Spread > 10% (Last 3M)")
 stats_df <- move_col_after(stats_df, "Avg Annualized Returns", "Weekly Spread > 10% (Last 3M)")
