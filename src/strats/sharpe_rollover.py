@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 
-from datetime import timedelta
 from pandas.tseries.holiday import USFederalHolidayCalendar
 
 
@@ -98,13 +97,6 @@ def returns(close_prices, window_duration, hold_duration, top_k):
     all_buy_prices: pd.DataFrame
         Buy prices of each security on each day bought
     all_sell_prices: pd.DataFrame
-    sharpes: pd.DataFrame
-        Sharpe ratios for `top_k` at buy time
-    sell_sharpes: pd.DataFrame
-        As above but for sell times.
-    holding_returns: pd.DataFrame
-        Returns from buy price for each position for each trading day.
-        Used to calculate e.g. drawdowns.
     """
     buy_prices = None
 
@@ -113,17 +105,14 @@ def returns(close_prices, window_duration, hold_duration, top_k):
         close_prices.index[-1],
         hold_duration)
 
-    all_buy_prices = pd.DataFrame(
-        np.nan, index=trade_dates, columns=range(top_k))
-    all_sell_prices = pd.DataFrame(
-        np.nan, index=trade_dates[1:], columns=range(top_k))
+    tickers = close_prices.columns
+
+    buy_signals = pd.DataFrame(
+        False, index=trade_dates, columns=tickers)
+    sell_signals = pd.DataFrame(
+        False, index=trade_dates[1:], columns=tickers)
 
     returns = pd.DataFrame(np.nan, index=trade_dates[1:], columns=range(top_k))
-    holding_returns = pd.DataFrame(
-        np.nan, index=close_prices.index, columns=range(top_k))
-    sharpes = pd.DataFrame(np.nan, index=trade_dates, columns=range(top_k))
-    sell_sharpes = pd.DataFrame(
-        np.nan, index=trade_dates[1:], columns=range(top_k))
 
     for i, rollover in enumerate(trade_dates):
         window_begin = prev_business_day(rollover - window_duration)
@@ -131,28 +120,14 @@ def returns(close_prices, window_duration, hold_duration, top_k):
             .pct_change().apply(sharpe).sort_values(ascending=False)
 
         if buy_prices is not None:
-            # Calculate returns from buy_price over this period
-            # to understand drawdowns, etc.
-            last_rollover = trade_dates[i - 1]
-            holding_period = slice(last_rollover + timedelta(days=1),
-                                   rollover)
-            prices_over_period = close_prices.loc[holding_period,
-                                                  buy_prices.index]
-            holding_returns.loc[holding_period] = ((
-                prices_over_period / buy_prices) - 1).values
-
             # Calculate actual returns from rolling over positions
             sell_prices = close_prices.loc[rollover, buy_prices.index]
             returns.loc[rollover] = ((sell_prices / buy_prices) - 1).values
-            all_sell_prices.loc[rollover] = sell_prices.values
-            sell_sharpes.loc[rollover] = current_sharpes[buy_prices.index] \
-                .values
+            sell_signals.loc[rollover, sell_prices.index] = True
 
         top_scores = current_sharpes.head(top_k)
         buy_prices = close_prices.loc[rollover, top_scores.index]
 
-        sharpes.loc[rollover] = top_scores.values
-        all_buy_prices.loc[rollover] = buy_prices.values
+        buy_signals.loc[rollover, buy_prices.index] = True
 
-    return (returns, all_buy_prices, all_sell_prices,
-            sharpes, sell_sharpes, holding_returns)
+    return returns, buy_signals, sell_signals
