@@ -139,7 +139,7 @@ references/
 reports/
 .Rproj.user
 scorecard/output
-scorecard/.RData
+scorecard/*.RData
 scorecard/.Rhistory
 scorecard/.Rproj.user
 personal-notebooks/
