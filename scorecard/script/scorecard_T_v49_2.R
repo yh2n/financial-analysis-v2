@@ -109,6 +109,7 @@ jan1998_td <- businessDaysBetween("UnitedStates/NYSE", as.Date("1998-01-01"), as
 lookbacks <- c(10, 21, 3*21, 6*21, 1*252, 3*252, 5*252, 10*252, 15*252, jan1998_td)
 names(lookbacks) <- c("2W", "1M", "3M", "6M", "1Y", "3Y", "5Y", "10Y", "15Y", "Since Jan 1998")
 lookbacks <- lookbacks[c("15Y", "10Y", "5Y", "3Y", "1Y", "6M", "3M", "1M", "Since Jan 1998")]
+lookback_2Y <- 504
 period_gteq_1y <- c("15Y", "10Y", "5Y", "3Y", "1Y", "Since Jan 1998", "Since Inception/1980")
 period_less_1y <- names(lookbacks)[!(names(lookbacks) %in% period_gteq_1y)]
 
@@ -364,13 +365,13 @@ for(k in tkr_list) {
   }
 
   # Calc percent of Up times during QQQ down for the last two years
-  iv <- NROW(prices) - 504
+  iv <- NROW(prices) - lookback_2Y
   if(iv < im){
     iv <- im
   }
   downCnt <- NROW(r_daily[r_daily[iv:NROW(prices), "QQQ"] <= -downSize])
   upCnt <- NROW(r_daily[(r_daily[iv:NROW(prices), "QQQ"] <= -downSize) 
-                      & (r_daily[iv:NROW(prices), k] >= downSize)])
+                        & (r_daily[iv:NROW(prices), k] >= downSize)])
   if(downCnt > 0) {
     str_stats <- c(str_stats, toPercent(upCnt/downCnt))
   } else {
