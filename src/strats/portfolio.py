@@ -38,8 +38,8 @@ class Portfolio:
 
         self._returns = defaultdict(pd.Series)
         self._holding_returns = defaultdict(pd.Series)
-        self.buy_signals = defaultdict(pd.Series)
-        self.sell_signals = defaultdict(pd.Series)
+        self._buy_signals = defaultdict(pd.Series)
+        self._sell_signals = defaultdict(pd.Series)
 
     def buy(self, day, tickers, prices, weights=1.0):
         tickers = validate_tickers(tickers)
@@ -48,7 +48,7 @@ class Portfolio:
 
         self._positions = union_add(self._positions, weights)
         self.last_buy_price = union_add(self.last_buy_price, prices[tickers])
-        self.buy_signals[day] = union_add(self.buy_signals[day], weights)
+        self._buy_signals[day] = union_add(self._buy_signals[day], weights)
 
         new_hold = self._positions[tickers] == weights
 
@@ -65,7 +65,7 @@ class Portfolio:
         returns = (prices[tickers] / self.last_buy_price[tickers]) - 1
 
         self._returns[day] = union_add(self._returns[day], returns * weights)
-        self.sell_signals[day] = union_add(self.sell_signals[day], weights)
+        self._sell_signals[day] = union_add(self._sell_signals[day], weights)
 
         closed_positions = self.tickers_held[self._positions == 0]
 
@@ -90,5 +90,15 @@ class Portfolio:
 
     @property
     def holding_returns(self):
-        return pd.DataFrame(
-            self._holding_returns.values(), index=self._holding_returns.keys())
+        return pd.DataFrame(self._holding_returns.values(),
+                            index=self._holding_returns.keys())
+
+    @property
+    def buy_signals(self):
+        return pd.DataFrame(self._buy_signals.values(),
+                            index=self._buy_signals.keys())
+
+    @property
+    def sell_signals(self):
+        return pd.DataFrame(self._sell_signals.values(),
+                            index=self._sell_signals.keys())

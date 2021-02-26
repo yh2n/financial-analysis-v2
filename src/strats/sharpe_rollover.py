@@ -3,6 +3,8 @@ import pandas as pd
 
 from pandas.tseries.holiday import USFederalHolidayCalendar
 
+from strats.portfolio import Portfolio
+
 
 def sharpe(returns, freq='daily'):
     """Calculate the annualized Sharpe ratio.
@@ -76,7 +78,8 @@ def get_trade_dates(start, end, step):
     return out
 
 
-def returns(close_prices, window_duration, hold_duration, top_k):
+def sharpe_rollover_returns(
+        close_prices, window_duration, hold_duration, top_k):
     """"Sharpe rollover" strategy:
         - Take equal-weighted positions in the `top_k` tickers
         with the highest Sharpe ratio over the past `window_duration`.
@@ -92,42 +95,23 @@ def returns(close_prices, window_duration, hold_duration, top_k):
 
     Returns
     -------
-    returns: pd.DataFrame
-        Returns from each of the securities sold for each day traded
-    all_buy_prices: pd.DataFrame
-        Buy prices of each security on each day bought
-    all_sell_prices: pd.DataFrame
+    portfolio: Portfolio
     """
-    buy_prices = None
+    start = close_prices.index[0] + window_duration
+    end = close_prices.index[-1]
+    trade_dates = get_trade_dates(start, end, hold_duration)
 
-    trade_dates = get_trade_dates(
-        close_prices.index[0] + window_duration,
-        close_prices.index[-1],
-        hold_duration)
-
-    tickers = close_prices.columns
-
-    buy_signals = pd.DataFrame(
-        False, index=trade_dates, columns=tickers)
-    sell_signals = pd.DataFrame(
-        False, index=trade_dates[1:], columns=tickers)
-
-    returns = pd.DataFrame(np.nan, index=trade_dates[1:], columns=range(top_k))
+    p = Portfolio(start, end, close_prices.columns)
 
     for i, rollover in enumerate(trade_dates):
+        if not p.tickers_held.empty:
+            p.sell(rollover, p.tickers_held, close_prices.loc[rollover])
+
         window_begin = prev_business_day(rollover - window_duration)
         current_sharpes = close_prices.loc[window_begin:rollover] \
             .pct_change().apply(sharpe).sort_values(ascending=False)
+        top_scorers = current_sharpes.head(top_k).index
 
-        if buy_prices is not None:
-            # Calculate actual returns from rolling over positions
-            sell_prices = close_prices.loc[rollover, buy_prices.index]
-            returns.loc[rollover] = ((sell_prices / buy_prices) - 1).values
-            sell_signals.loc[rollover, sell_prices.index] = True
+        p.buy(rollover, top_scorers, close_prices.loc[rollover])
 
-        top_scores = current_sharpes.head(top_k)
-        buy_prices = close_prices.loc[rollover, top_scores.index]
-
-        buy_signals.loc[rollover, buy_prices.index] = True
-
-    return returns, buy_signals, sell_signals
+    return p
