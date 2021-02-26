@@ -101,7 +101,7 @@ def sharpe_rollover_returns(
     end = close_prices.index[-1]
     trade_dates = get_trade_dates(start, end, hold_duration)
 
-    p = Portfolio(start, end, close_prices.columns)
+    p = Portfolio()
 
     for i, rollover in enumerate(trade_dates):
         if not p.tickers_held.empty:

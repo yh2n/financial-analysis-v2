@@ -4,6 +4,14 @@ from collections import defaultdict
 
 
 def union_add(this, that):
+    """Adds the values in `that` to `this`,
+    filling with 0 wherever the index does not exist in
+    either.
+
+    Parameters
+    ----------
+    this, that : pd.Series
+    """
     return this.add(that, fill_value=0)
 
 
@@ -31,7 +39,7 @@ def validate_weights(tickers, weights):
 
 
 class Portfolio:
-    def __init__(self, start, end, tickers):
+    def __init__(self):
         self._positions = pd.Series()
         self.last_buy_price = pd.Series()
         self.days_held = pd.Series()
