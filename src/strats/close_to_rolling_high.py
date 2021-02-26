@@ -1,5 +1,6 @@
-import numpy as np
 import pandas as pd
+
+from strats.portfolio import Portfolio
 
 
 def close_to_rolling_high(close_prices, hi_prices):
@@ -21,9 +22,6 @@ def ctrh_returns(close_prices, hi_prices, top_k, dump_period=None):
     are used as sell limits. When a stock is sold, a new position is taken
     based on current ctrh values.
 
-    Equal positions are taken in all stocks, so that returns are all divided by
-    a factor of `top_k`.
-
 
     Parameters
     ----------
@@ -36,67 +34,43 @@ def ctrh_returns(close_prices, hi_prices, top_k, dump_period=None):
 
     Returns
     -------
-    returns: pd.Series
-        Returns for each trading day. 0 on days with no sells; nan on days
-        with no positions.
-    holding_returns: pd.DataFrame
-        Returns from buy_price to current close for each stock held.
-        If no position was held in a stock on that day, nan.
-    days_since_buy: pd.DataFrame
-        For each stock held, number of days since position was taken.
-        If no position held, nan.
+    returns: Portfolio
     """
     ctrh_returns = close_to_rolling_high(close_prices, hi_prices)
 
-    returns = pd.Series(np.nan, index=close_prices.index)
-    holding_returns = []
-    holdings = None
-    days_since_buy = []
+    p = Portfolio()
 
     for day in close_prices.index:
         top_scoring = ctrh_returns.loc[day] \
             .sort_values(ascending=False).head(top_k)
 
-        if holdings is None:
+        if p.tickers_held.empty:
             if not top_scoring.isna().any():
-                holdings = pd.DataFrame({
-                    'sell_limits': top_scoring,
-                    'buy_prices': close_prices.loc[day, top_scoring.index],
-                    'days_since_buy': 0
-                })
+                p.buy(day, top_scoring.index, close_prices.loc[day])
+                sell_limits = top_scoring.sort_index()
         else:
-            holding_returns.append((
-                close_prices.loc[day, holdings.index]
-                / holdings['buy_prices']) - 1)
-            highs = hi_prices.loc[day, holdings.index]
-            curr_returns = (highs / holdings['buy_prices']) - 1
+            curr_returns = (hi_prices.loc[day, p.tickers_held] \
+                            / p.last_buy_price) - 1
 
-            selling = set(
-                holdings.index[curr_returns >= holdings['sell_limits']])
-            returns.loc[day] = (holdings.loc[selling, 'sell_limits'].sum()
-                                if len(selling) > 0 else 0)
+            selling = curr_returns.index[curr_returns >= sell_limits]
+            sell_prices = (sell_limits + 1) * p.last_buy_price
+
+            if len(selling) > 0:
+                p.sell(day, selling, sell_prices[selling])
 
             if dump_period is not None:
-                dumping = holdings.index[
-                    holdings['days_since_buy'] > dump_period]
-                returns.loc[day] += holding_returns[-1][dumping].sum()
-                selling |= set(dumping)
+                dumping = p.tickers_held[p.days_held > dump_period]
+                if len(dumping) > 0:
+                    p.sell(day, dumping, close_prices.loc[day])
 
-            returns.loc[day] /= top_k
-
-            still_holding = holdings.index.drop(selling)
-            holdings = holdings.drop(selling)
+            sell_limits = sell_limits[p.tickers_held]
 
             new_buys = top_scoring.drop(
-                still_holding, errors='ignore').head(len(selling))
-            holdings.loc[still_holding, 'days_since_buy'] += 1
+                p.tickers_held, errors='ignore').head(
+                    top_k - len(p.tickers_held))
+            p.tick(day, close_prices.loc[day])
 
-            new_holdings = pd.DataFrame({
-                'sell_limits': new_buys,
-                'buy_prices': close_prices.loc[day, new_buys.index],
-                'days_since_buy': 0})
+            p.buy(day, new_buys.index, close_prices.loc[day])
 
-            holdings = pd.concat((holdings, new_holdings))
-            days_since_buy.append(holdings['days_since_buy'])
-
-    return returns, pd.DataFrame(holding_returns), pd.DataFrame(days_since_buy)
+            sell_limits = pd.concat((sell_limits, new_buys)).sort_index()
+    return p
