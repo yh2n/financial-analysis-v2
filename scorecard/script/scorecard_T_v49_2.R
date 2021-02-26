@@ -415,7 +415,6 @@ calc_dist_to_goal <- function(p, goal) {
 }
 stats_df[, "Distance to 1Y Mean Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_mean), plus_sign=TRUE)
 stats_df[, "Distance to 1Y Median Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_median), plus_sign=TRUE)
-stats_df[, "Distance to 1Y Mean -1SD Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_mean - tp_sd), plus_sign=TRUE)
 stats_df[, "Distance to 1Y Mean +1SD Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_mean + tp_sd), plus_sign=TRUE)
 stats_df[, "Distance to 1Y Mean Target Price (1Y Ago Lagged)"] <- toPercent(calc_dist_to_goal(prices, tp_mean_lag), plus_sign=TRUE)
 stats_df[, paste0("1M Median Daily Return")] <- toPercent(colMedians(last(r_daily[, !colnames(r_daily) %in% c("SPY", "QQQ")], "1 month"), na.rm=T))
@@ -501,8 +500,8 @@ for (confidence in confidence_vals) {
   use_lookbacks <- lookbacks[c("3M", "1M")]
   tmp_lookbacks <- c("2M"=2*21)
   use_lookbacks <- sort(c(use_lookbacks, tmp_lookbacks), decreasing=TRUE)
-  use_rtns <- list(r_daily, r_hi_daily, r_cl_to_roll_hi_wkly)
-  names(use_rtns) <- c("Cl-to-Cl 1D Rtn", "Cl-to-Hi 1D Rtn", "Cl-to-Rolling-1W-Hi 1W Rtn")
+  use_rtns <- list(r_cl_to_roll_hi_wkly)
+  names(use_rtns) <- c("Cl-to-Rolling-1W-Hi 1W Rtn")
   for (rtn_name in names(use_rtns)) {
     for (lb_name in names(use_lookbacks)) {
       stat_name <- paste(lb_name, toPercent(confidence, digits=0), "Confidence", rtn_name)
@@ -592,9 +591,6 @@ stats_df <- stats_df[, colnames(stats_df) != "Avg Sharpe"]
 stats_df <- stats_df[, colnames(stats_df) != "max_lookbacks"]
 stats_df <- stats_df[, !(names(stats_df) %in% rtn_colnames_gteq_1y_to_del)]
 stats_df <- stats_df[, !(names(stats_df) %in% rtn_colnames_less_1y)]
-# drop 95% onfidence Cl-to-Rolling-1W-Hi 1W Rtn
-idx_col_to_del <- grep("95% Confidence Cl-to-Rolling-1W-Hi 1W Rtn", names(stats_df))
-stats_df <- stats_df[, -idx_col_to_del]
 
 # reorder columns
 stats_df <- move_col_after(stats_df, paste0("Close Price on ", last_data_date), "Ticker")
@@ -613,10 +609,9 @@ stats_df <- move_col_after(stats_df, "Weekly Spread > 10% (Last 3M)", "1M Median
 stats_df <- move_col_after(stats_df, "% of Time > 10% Within 1M (Last 3Y)", "Weekly Spread > 10% (Last 3M)")
 stats_df <- move_col_after(stats_df, "Avg Annualized Returns", "Weekly Spread > 10% (Last 3M)")
 stats_df <- move_col_after(stats_df, "Distance to 52-Week High", "Avg Annualized Returns")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Mean Target Price", "Distance to 52-Week High")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Median Target Price", "Distance to 1Y Mean Target Price")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Mean -1SD Target Price", "Distance to 1Y Median Target Price")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Mean +1SD Target Price", "Distance to 1Y Mean -1SD Target Price")
+stats_df <- move_col_after(stats_df, "Distance to 1Y Median Target Price", "Distance to 52-Week High")
+stats_df <- move_col_after(stats_df, "Distance to 1Y Mean Target Price", "Distance to 1Y Median Target Price")
+stats_df <- move_col_after(stats_df, "Distance to 1Y Mean +1SD Target Price", "Distance to 1Y Mean Target Price")
 stats_df <- move_col_after(stats_df, "Distance to 1Y Mean Target Price (1Y Ago Lagged)", "Distance to 1Y Mean +1SD Target Price")
 stats_df <- move_col_after(stats_df, "Price Relative to 200D SMA", "Distance to 1Y Mean Target Price (1Y Ago Lagged)")
 stats_df <- move_col_after(stats_df, "Price Relative to 50D SMA", "Price Relative to 200D SMA")
