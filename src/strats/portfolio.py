@@ -50,6 +50,9 @@ class Portfolio:
         self._sell_signals = defaultdict(pd.Series)
 
     def buy(self, day, tickers, prices, weights=1.0):
+        if not isinstance(weights, (int, float)) or weights != 1.0:
+            raise ValueError('Fractional buying not yet implemented.')
+
         tickers = validate_tickers(tickers)
         validate_prices(tickers, prices)
         weights = validate_weights(tickers, weights)
@@ -64,6 +67,9 @@ class Portfolio:
             self.days_held, pd.Series(0, index=new_hold.index))
 
     def sell(self, day, tickers, prices, weights=1.0):
+        if not isinstance(weights, (int, float)) or weights != 1.0:
+            raise ValueError('Fractional selling not yet implemented.')
+
         tickers = validate_tickers(tickers)
         validate_prices(tickers, prices)
         weights = validate_weights(tickers, weights)
@@ -82,6 +88,21 @@ class Portfolio:
         self.last_buy_price.drop(closed_positions, inplace=True)
 
     def tick(self, day, prices):
+        """
+        It's natural to update some quantities day-by-day, and that's
+        what this `tick` method is intended to do.
+
+        One issue is this requires that the caller know to call this
+        on every loop of a daily strategy (and that such a loop exists).
+
+        This would become less of an issue if we standardised a
+        strategy-running engine.
+
+        `self._returns` is updated to set returns for all positions to 0 if
+        not currently set, to reflect that unsold positions generate 0 returns.
+        `union_add` is used so no assumptions are made about when `sell` may be
+        called for this `day`.
+        """
         self._returns[day] = union_add(self._returns[day],
                                        pd.Series(0.0, index=self.tickers_held))
         self._holding_returns[day] = (prices[self.tickers_held]
