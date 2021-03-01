@@ -1,9 +1,13 @@
+import logging
+
 import numpy as np
 import pandas as pd
 
 from pandas.tseries.holiday import USFederalHolidayCalendar
 
 from strats.portfolio import Portfolio
+
+log = logging.getLogger('sharpe_rollover')
 
 
 def sharpe(returns, freq='daily'):
@@ -24,14 +28,14 @@ def sharpe(returns, freq='daily'):
     else:
         raise ValueError("freq must be one of 'daily' or 'monthly'")
 
-    if np.std(returns) == 0:
-        print('Returns has zero std dev')
-        if (~returns.isna()).sum() == 1:
-            print('Because there was only one traded day in window')
-            return np.nan
-        elif (returns[~returns.isna()] == 0).all():
-            print('Because all returns were 0')
-            return np.nan
+    if (~returns.isna()).sum() == 1:
+        log.warn(
+            'Sharpe undefined because there was only one '
+            'traded day in window.')
+        return np.nan
+    elif (returns[~returns.isna()] == 0).all():
+        log.warn('Sharpe undefined because all returns were 0.')
+        return np.nan
 
     return np.mean(returns) / np.std(returns) * (annualize_factor ** 0.5)
 
