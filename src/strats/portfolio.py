@@ -40,14 +40,14 @@ def validate_weights(tickers, weights):
 
 class Portfolio:
     def __init__(self):
-        self._positions = pd.Series()
-        self.last_buy_price = pd.Series()
-        self.days_held = pd.Series()
+        self._positions = pd.Series(dtype=float)
+        self.last_buy_price = pd.Series(dtype=float)
+        self.days_held = pd.Series(dtype=float)
 
-        self._returns = defaultdict(pd.Series)
-        self._holding_returns = defaultdict(pd.Series)
-        self._buy_signals = defaultdict(pd.Series)
-        self._sell_signals = defaultdict(pd.Series)
+        self._returns = defaultdict(lambda: pd.Series(dtype=float))
+        self._holding_returns = defaultdict(lambda: pd.Series(dtype=float))
+        self._buy_signals = defaultdict(lambda: pd.Series(dtype=float))
+        self._sell_signals = defaultdict(lambda: pd.Series(dtype=float))
 
     def buy(self, day, tickers, prices, weights=1.0):
         if not isinstance(weights, (int, float)) or weights != 1.0:
