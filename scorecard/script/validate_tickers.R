@@ -19,13 +19,10 @@ source(paste0(SCRIPT_PATH, "get_market_cap.R"))
 
 # Inputs ---------------------------------------
 datasource <- "T"
-
-# basket
-basket <- "constituents_XAR_20200216"
-
-# other parameters
+api_key <- "6d76bf75fd2aa91075f33dff593d1639a40c5f88"
+basket <- "IBB"
 start_date <- "2020-09-01"
-end_date <- "2021-02-16"
+end_date <- "2021-02-21"
 
 # tickers 
 tkr_list <- read.table(paste0(BASKET_PATH, basket, ".csv"), header=FALSE, sep=",", stringsAsFactors=FALSE)[,1]
@@ -47,7 +44,8 @@ if(!file.exists(pricefile)) {
   cat("Cannot find existing price file.\n")
   price_list <- get_prices(tickers=all_tks, start=start_date, end=end_date,
                            types=c("Cl", "Hi", "Lo", "Op"), datasource=datasource,
-                           outfiles=c(pricefile, hipricefile, lopricefile, openpricefile))
+                           outfiles=c(pricefile, hipricefile, lopricefile, openpricefile),
+                           api_key=api_key)
 } else {
   cat("Price files already exist. Reading from existing file...\n")
 }

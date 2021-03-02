@@ -101,7 +101,6 @@ basket <- "scorecard_single_ticker"
 # other parameters
 start_date <- "1980-01-01"
 end_date <- format(Sys.Date())
-high_to_close_start_date <- "2020-11-03"
 DDthreshold <- 20
 downSize <- 0.0025
 corr_tks <- c("SPY", "QQQ")
@@ -114,7 +113,7 @@ period_gteq_1y <- c("15Y", "10Y", "5Y", "3Y", "1Y", "Since Jan 1998", "Since Inc
 period_less_1y <- names(lookbacks)[!(names(lookbacks) %in% period_gteq_1y)]
 
 if(TESTING_MODE) {
-  end_date <- "2021-02-17"
+  end_date <- "2021-02-25"
   basket <- "scorecard_single_ticker_TESTING_ONLY"
   # basket <- "scorecard_single_ticker"
 }
@@ -185,13 +184,13 @@ market_cap <- unlist(lapply(market_cap_list, function(tk) {
 # calc rolling high/low prices
 cat("\nCalculating rolling Hi/Lo prices...")
 # rolling week high prices
-rolling_high_weekly <- rollapply(hiprices, width=5, FUN=max)
+rolling_high_weekly <- rollapply(hiprices, width=5, FUN=max, align="right")
 # rolling week low prices
-rolling_low_weekly <- rollapply(loprices, width=5, FUN=min)
+rolling_low_weekly <- rollapply(loprices, width=5, FUN=min, align="right")
 # rolling month high prices
-rolling_high_monthly <- rollapply(hiprices, width=22, FUN=max)
+rolling_high_monthly <- rollapply(hiprices, width=22, FUN=max, align="right")
 # rolling month low prices
-rolling_low_monthly <- rollapply(loprices, width=22, FUN=min)
+rolling_low_monthly <- rollapply(loprices, width=22, FUN=min, align="right")
 cat("Done.")
 
 # Calc returns
@@ -416,23 +415,8 @@ calc_dist_to_goal <- function(p, goal) {
 }
 stats_df[, "Distance to 1Y Mean Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_mean), plus_sign=TRUE)
 stats_df[, "Distance to 1Y Median Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_median), plus_sign=TRUE)
-stats_df[, "Distance to 1Y Mean -1SD Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_mean - tp_sd), plus_sign=TRUE)
 stats_df[, "Distance to 1Y Mean +1SD Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_mean + tp_sd), plus_sign=TRUE)
 stats_df[, "Distance to 1Y Mean Target Price (1Y Ago Lagged)"] <- toPercent(calc_dist_to_goal(prices, tp_mean_lag), plus_sign=TRUE)
-
-# add in close to high prices
-CLOSE_TO_HIGH_AND_OPEN_THRESHOLDS <- c(0.5, 0.75, 1, 1.5, 2) # 0.5 here represents 0.5%
-r_hi_daily <- r_hi_daily[, !colnames(r_hi_daily) %in% c("SPY", "QQQ")]
-r_hi_daily <- r_hi_daily[index(r_hi_daily) >= high_to_close_start_date]
-for (val in CLOSE_TO_HIGH_AND_OPEN_THRESHOLDS) {
-  stats_df[, paste0("% of Days Close T-1 to High T > ", val, " Since ", high_to_close_start_date)] <- toPercent(colSums(r_hi_daily >= val/100, na.rm=T) / colSums(!is.na(r_hi_daily)))
-}
-r_open_daily <- r_open_daily[, !colnames(r_open_daily) %in% c("SPY", "QQQ")]
-r_open_daily <- r_open_daily[index(r_open_daily) >= high_to_close_start_date]
-for (val in CLOSE_TO_HIGH_AND_OPEN_THRESHOLDS) {
-  stats_df[, paste0("% of Days Close T-1 to Open T > ", val, " Since ", high_to_close_start_date)] <- toPercent(colSums(r_open_daily >= val/100, na.rm=T) / colSums(!is.na(r_hi_daily)))
-}
-
 stats_df[, paste0("1M Median Daily Return")] <- toPercent(colMedians(last(r_daily[, !colnames(r_daily) %in% c("SPY", "QQQ")], "1 month"), na.rm=T))
 stats_df[, paste0("3M Median Daily Return")] <- toPercent(colMedians(last(r_daily[, !colnames(r_daily) %in% c("SPY", "QQQ")], "3 months"), na.rm=T))
 stats_df[, paste0("Lifetime Mean Daily Spread")] <- toPercent(colMeans(r_spread_daily, na.rm=T))
@@ -513,14 +497,16 @@ stats_df[, "Market Cap (BN)"] <- sapply(stats_df[, "Ticker"], function(tk) {
 confidence_vals <- c(0.95, 0.90)
 for (confidence in confidence_vals) {
   prob <- 1 - confidence
-  use_lookbacks <- c("3M", "1M")
-  use_rtns <- list(r_daily, r_hi_daily, r_cl_to_roll_hi_wkly)
-  names(use_rtns) <- c("Cl-to-Cl 1D Rtn", "Cl-to-Hi 1D Rtn", "Cl-to-Rolling-1W-Hi 1W Rtn")
+  use_lookbacks <- lookbacks[c("3M", "1M")]
+  tmp_lookbacks <- c("2M"=2*21)
+  use_lookbacks <- sort(c(use_lookbacks, tmp_lookbacks), decreasing=TRUE)
+  use_rtns <- list(r_cl_to_roll_hi_wkly)
+  names(use_rtns) <- c("Cl-to-Rolling-1W-Hi 1W Rtn")
   for (rtn_name in names(use_rtns)) {
-    for (lb in use_lookbacks) {
-      stat_name <- paste(lb, toPercent(confidence, digits=0), "Confidence", rtn_name)
+    for (lb_name in names(use_lookbacks)) {
+      stat_name <- paste(lb_name, toPercent(confidence, digits=0), "Confidence", rtn_name)
       stats_df[, stat_name] <- sapply(stats_df[, "Ticker"], function(tk) {
-        rtns_lb <- tail(use_rtns[[rtn_name]][, tk], lookbacks[lb])
+        rtns_lb <- tail(use_rtns[[rtn_name]][, tk], use_lookbacks[lb_name])
         res <- quantile(rtns_lb, probs=prob, na.rm=TRUE)
         toPercent(res)
       })
@@ -599,19 +585,12 @@ stats_df[, ann_rtn_colnames_less_1y] <- sapply(period_less_1y, function(p){
 colnames(stats_df)[colnames(stats_df) %in% ann_rtn_colnames_less_1y] <- paste0(ann_rtn_colnames_less_1y, " {Sharpe}")
 
 # drop undesired columns
-# keep 3Y Return
+# keep 3Y Return only and drop other lookback rtn columns
 rtn_colnames_gteq_1y_to_del <- rtn_colnames_gteq_1y[rtn_colnames_gteq_1y != "3Y Return"]
 stats_df <- stats_df[, colnames(stats_df) != "Avg Sharpe"]
 stats_df <- stats_df[, colnames(stats_df) != "max_lookbacks"]
 stats_df <- stats_df[, !(names(stats_df) %in% rtn_colnames_gteq_1y_to_del)]
 stats_df <- stats_df[, !(names(stats_df) %in% rtn_colnames_less_1y)]
-
-# duplicate specific columns for ease of reference
-cols_to_dup <- c(paste0("% of Days Close T-1 to High T > 1 Since ", high_to_close_start_date),
-                 paste0("% of Days Close T-1 to High T > 1.5 Since ", high_to_close_start_date))
-for (col in cols_to_dup) {
-  stats_df[, paste0(col, "_")] <- stats_df[, col]
-}
 
 # reorder columns
 stats_df <- move_col_after(stats_df, paste0("Close Price on ", last_data_date), "Ticker")
@@ -626,31 +605,19 @@ stats_df <- move_col_after(stats_df, "Outperformance/Underperformance vs QQQ, 3M
 stats_df <- move_col_after(stats_df, "3M Sharpe", "Outperformance/Underperformance vs QQQ, 3M")
 stats_df <- move_col_after(stats_df, "3M Median Daily Return", "3M Sharpe")
 stats_df <- move_col_after(stats_df, "1M Median Daily Return", "3M Median Daily Return")
-stats_df <- move_col_after(
-  stats_df,
-  paste0("% of Days Close T-1 to High T > 1 Since ", high_to_close_start_date, "_"),
-  "1M Median Daily Return"
-)
-stats_df <- move_col_after(
-  stats_df,
-  paste0("% of Days Close T-1 to High T > 1.5 Since ", high_to_close_start_date, "_"),
-  paste0("% of Days Close T-1 to High T > 1 Since ", high_to_close_start_date, "_")
-)
-stats_df <- move_col_after(stats_df, "Weekly Spread > 10% (Last 3M)", paste0("% of Days Close T-1 to High T > 1.5 Since ", high_to_close_start_date, "_"))
+stats_df <- move_col_after(stats_df, "Weekly Spread > 10% (Last 3M)", "1M Median Daily Return")
 stats_df <- move_col_after(stats_df, "% of Time > 10% Within 1M (Last 3Y)", "Weekly Spread > 10% (Last 3M)")
 stats_df <- move_col_after(stats_df, "Avg Annualized Returns", "Weekly Spread > 10% (Last 3M)")
 stats_df <- move_col_after(stats_df, "Distance to 52-Week High", "Avg Annualized Returns")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Mean Target Price", "Distance to 52-Week High")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Median Target Price", "Distance to 1Y Mean Target Price")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Mean -1SD Target Price", "Distance to 1Y Median Target Price")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Mean +1SD Target Price", "Distance to 1Y Mean -1SD Target Price")
+stats_df <- move_col_after(stats_df, "Distance to 1Y Median Target Price", "Distance to 52-Week High")
+stats_df <- move_col_after(stats_df, "Distance to 1Y Mean Target Price", "Distance to 1Y Median Target Price")
+stats_df <- move_col_after(stats_df, "Distance to 1Y Mean +1SD Target Price", "Distance to 1Y Mean Target Price")
 stats_df <- move_col_after(stats_df, "Distance to 1Y Mean Target Price (1Y Ago Lagged)", "Distance to 1Y Mean +1SD Target Price")
 stats_df <- move_col_after(stats_df, "Price Relative to 200D SMA", "Distance to 1Y Mean Target Price (1Y Ago Lagged)")
 stats_df <- move_col_after(stats_df, "Price Relative to 50D SMA", "Price Relative to 200D SMA")
 stats_df <- move_col_after(stats_df, "Beta up to 3yr", "Price Relative to 50D SMA")
 stats_df <- move_col_after(stats_df, "Since Jan 1998 Annualized Return {Sharpe}", "Since Inception/1980 Sharpe")
 stats_df <- move_col_after(stats_df, "Since Jan 1998 Sharpe", "Since Jan 1998 Annualized Return {Sharpe}")
-
 stats_df <- move_col_after(stats_df, "Lifetime Mean Daily Spread", "Monthly Spread > 10% (Last 6M)")
 stats_df <- move_col_after(stats_df, "3M Mean Daily Spread", "Lifetime Mean Daily Spread")
 stats_df <- move_col_after(stats_df, "3M Mean Weekly Spread", "3M Mean Daily Spread")
