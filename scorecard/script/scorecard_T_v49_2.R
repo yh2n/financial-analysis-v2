@@ -1,73 +1,6 @@
 # This script collects statistics for given list of tickers. 
 # Prices are downloaded from selected sources if not found locally.
 
-# Update log  ----------------------------------
-# 6DD  is v6 with drawdowns
-# 7DD  added % of ups when QQQ is down
-# 8DD  corr of returns rather than prices 
-# 9DD  added rank by sharpe to output, added Moat, 
-#      rounded output to 2 decimals, fixed bugs
-# 10DD input "Moat" from basket file
-# 11DD added sum of Sharpe to output; sort by sum of Sharpe
-# 12DD ranks dropped
-# 13DD added 2Y sharpe to sharpe sum; added column "Distance from 52-Week High"
-# 14DD rearrange columns
-# 15DD added distance(SD) to 50D SMA 
-# 16DD added 6M, 1Y stats; changed column names
-# 17DD added 1M stats; added new column "Average Annulalized Return" for selected lookbacks
-# 18DD using RQuantLib for YTD calculation
-# 19DD in "Average Annulalized Return": added 5Y to lookbacks and added "Avg. Monthly Return"
-# 20DD index based on ticker rather than interger
-# 21DD added return and sharpe for period "Since Jun 2002"
-# 22DD added 5Y to Sum of Sharpes
-# 23DD added stats for 10Y and 15Y; removed 1M from Sum of Sharpes and Avg of Returns;
-#      rearranged output as: 15Y, 10Y, 1Y, 5Y, 2Y, 6M, 3M, 1M, 2W, YTD, Since 2002
-# 24DD dropped YTD; keep annualized numbers only for periods longer than 1Y; 
-#      rearranged output as: 15Y, 10Y, 5Y, 1Y, 2Y, 6M, 3M, 1M, 2W, Since 2002
-# 25DD added 2 place holders for stats period 'since inception'
-# 26DD added stats period 'since inception'
-# 27DD replaced 2Y with 3Y; changed Sum of Sharpe to Avg Sharpe;
-#      use non-NA valued to calc avg of sharpe and append [available years] to value;
-#      use 3M, 6M, 1Y, 3Y, 5Y, 10Y, 15Y for Sharpe calc; 
-#      sort output by Avg Sharpe
-#      rearranged output as: 15Y, 10Y, 5Y, 3Y, 1Y, 6M, 3M, 1M, Since 2002
-#      dropped corr tk: AMZN, NFLX; moved QQQcorrelation after SPYcorrelation
-#      for period > 1Y, merge ann return and sharpe to one column
-# change on 27DD 
-#      for '1Y' dropped total return, then merge ann return and sharpe to one column
-# 28DD split the sharpe ratios with the returns
-# 29DD merge the sharpe with the returns, but do not drop the sharpe in order to color
-# 30DD misc output formatting; added Alec Path config
-# 31DD fix read data date index bug
-# 32DD reroll data reading format to 30DD; 
-#      merge sharpe with return for periods < 1Y, but do not drop the sharpe in order to color;
-#      use {sharpe}
-# 33DD change "since 2002" to "since 1998"
-# 34DD drop 3M in Avg Sharpe and Avg Annualized Rtn calc
-# 35DD geometric average for periods higher than one year
-# 36DD added column "Growth of $100 since 1998, USD"(PV of $100 invested in 1998)
-#      fixed bug in annualized return calculation with geometric average
-# 37DD merged "Growth" column with "Ann Return" column
-# 38DD new format for dollar output(add thousand separator, round to ones place)
-# 39DD move stats for "since inception" before "since 1998"; use arithmetic mean for "since inception"
-# v40  rename script "scorecard_T_[version]"
-# v41  add "Distance from 1Y Mean Target Price";
-# v42  use new get_prices.R (v3.6)
-# v43  append "Avg Aharpe" to "Avg Rtns" and drop "Avg Sharpe"
-# v44  change output filename
-# v45  remove "(average monthly return)" from "Average Ann return"
-# v46  remove "Moat"; add column "Price Target Envelope"(with new get_target_price())
-# v47  redefine "distance"("with respect to target" -> "with respect to current price");
-#      break column "price target envelope"
-# v48  use new get_prices.R (v4.0)
-#      add column "Price Relative to 200D SMA"
-# v49  add columns "EPS", "Distance to 1Y Mean -1SD Target Price", "Distance to 1Y Mean +1SD Target Price",
-#      "Distance to 1Y Mean Target Price (1Y Ago)";
-#      change column "Price Target Envelope (Median)" name to "Distance to 1Y Median Target Price";
-#      remove columns "Price Target Envelope (Low)", "Price Target Envelope (High)"
-#      rearrange columns;
-#      use new get_target_price.R (v5.1)
-
 
 # Configuration --------------------------------
 rm(list = ls())
@@ -89,8 +22,8 @@ source(paste0(SCRIPT_PATH, "get_market_cap.R"))
 
 TESTING_MODE <- FALSE
 
+
 # Inputs ---------------------------------------
-version <- "v49"
 datasource <- "T"
 
 # basket
@@ -123,7 +56,7 @@ tkr_list <- read.table(paste0(BASKET_PATH, basket, ".csv"), header=FALSE, sep=",
 all_tks <- unique(c(tkr_list, corr_tks))
 
 # outfile path
-outfile_name <- paste("score_T", basket, start_date, end_date, datasource, version, sep="_")
+outfile_name <- paste("score_T", basket, start_date, end_date, datasource, sep="_")
 outfile <- paste0(OUTPUT_PATH, outfile_name, ".csv")
 
 
@@ -266,7 +199,6 @@ for(k in tkr_list) {
     stop("Data length shorter than some of the lookbacks")
   }
   
-  
   # Calc lookback total returns and annualized arithmetic returns
   R_tot <- coredata(prices)[NROW(prices), k] / coredata(prices)[lb_start, k] - 1
   Ra <- R_tot * 252 / lookbacks_k
@@ -357,7 +289,6 @@ for(k in tkr_list) {
     x <- r_daily[iv:NROW(prices), "SPY"]
     fit <- lm(y ~ x)
     beta <- summary(fit)$coefficients[2, 1]
-    # print(paste("beta:", tkr_list[k], beta, sep=" "))
     str_stats <- c(str_stats, formatC(beta, digits=2, format="f"))
   } else {
     str_stats <- c(str_stats, NA)
@@ -516,6 +447,7 @@ for (confidence in confidence_vals) {
 
 cat("Done.")
 
+
 # Formatting ------------------------------------------------------------
 cat("Formatting...")
 # rank by 3M Sharpe. This should be done before the ranking column get further formatted(become str)
@@ -624,6 +556,8 @@ stats_df <- move_col_after(stats_df, "3M Mean Weekly Spread", "3M Mean Daily Spr
 stats_df <- move_col_after(stats_df, "6M Mean Monthly Spread", "3M Mean Weekly Spread")
 
 cat("Done.\n")
+
+
 # Write output to file --------------------------------
 cat("Writing results to: ",outfile,"...")
 write.table(stats_df, outfile, sep=",", row.names=FALSE)
