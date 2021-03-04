@@ -120,15 +120,12 @@ strategy <- function(prices, earnings_dates, entry_exit_points, latest_first=TRU
 # run through all tickers
 cat("Calculating... ")
 summary_table <- sapply(tickers, function(tk) {
-# for (tk in tickers) {
-  print(tk)
   # calc returns for tk
   df <- strategy(prices=prices[[tk]], earnings_dates=earnings_dates[[tk]], entry_exit_points=entry_exit_points, latest_first=TRUE)
   
   # calc summary statistics for each entry_exit pair
   stats_list <- lapply(names(entry_exit_points), function(i) {
     n_obsv <- length(na.omit(df[, i]))
-    holding_len <- entry_exit_points[[i]][2] - entry_exit_points[[i]][1]
     min_rtn <- min(df[, i], na.rm=TRUE)
     max_rtn <- max(df[, i], na.rm=TRUE)
     mean_rtn <- mean(df[, i], na.rm=TRUE)
