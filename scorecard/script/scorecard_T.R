@@ -137,8 +137,6 @@ r_open_daily <- (openprices - lag(prices)) / lag(prices)
 # calc daily spread as a ratio of close price
 r_spread_daily <- ((hiprices - loprices)) / prices
 r_spread_daily <- r_spread_daily[, !colnames(r_spread_daily) %in% c("SPY", "QQQ")]
-# calc close to rolling_high_weekly weekly returns
-r_cl_to_roll_hi_wkly <- (rolling_high_weekly - lag(prices, 5)) / lag(prices, 5)
 # calc rolling spreads
 rolling_spread_weekly <- (rolling_high_weekly - rolling_low_weekly) / prices
 rolling_spread_weekly <- rolling_spread_weekly[, !colnames(rolling_spread_weekly) %in% c("SPY", "QQQ")]
@@ -206,7 +204,7 @@ for(k in tkr_list) {
   # use annualized geometric rtn for periods > 1Y except for "Since inception/1980"
   idx <- which(lookbacks_k > 252 & names(lookbacks_k) != "Since Inception/1980")
   Ra[idx] <- (1+R_tot[idx])^(252/lookbacks_k[idx]) - 1
-
+  
   # Sharpe Ratio
   Sh <- sapply(lookbacks_k, function(lb) {
     rtns <- tail(r_daily[, k], lb)
@@ -216,7 +214,7 @@ for(k in tkr_list) {
       return(mean(rtns) / sd(rtns) * sqrt(252))
     }
   })
-
+  
   # Combine results
   R_Ra_Sh <- as.vector(rbind(R_tot, Ra, Sh))
   
@@ -293,7 +291,7 @@ for(k in tkr_list) {
   } else {
     str_stats <- c(str_stats, NA)
   }
-
+  
   # Calc percent of Up times during QQQ down for the last two years
   iv <- NROW(prices) - lookback_2Y
   if(iv < im){
@@ -408,7 +406,7 @@ calc_dist_from_sma_in_sd <- function(p, sma_len) {
   # format
   sapply(sd_from_sma, function(i){
     res <- paste0(toDecimalPlaces(i, 2, plus_sign=TRUE))
-#    if(i>=0) return(paste0("'", res)) else return(res) # add ' to prevent treated as formula by google sheet 
+    #    if(i>=0) return(paste0("'", res)) else return(res) # add ' to prevent treated as formula by google sheet 
   })
 }
 stats_df[, "Price Relative to 200D SMA"] <- calc_dist_from_sma_in_sd(prices, 200)
@@ -423,27 +421,6 @@ stats_df[, "EPS"] <- sapply(stats_df[, "Ticker"], function(tk) {
 stats_df[, "Market Cap (BN)"] <- sapply(stats_df[, "Ticker"], function(tk) {
   if(is.null(market_cap[tk])) NA else toDecimalPlaces(market_cap[tk]/1000000000, 2)
 })
-
-# Add Quantile Rtns (aka "XX YY% Confidence ZZ Rtn")
-confidence_vals <- c(0.95, 0.90)
-for (confidence in confidence_vals) {
-  prob <- 1 - confidence
-  use_lookbacks <- lookbacks[c("3M", "1M")]
-  tmp_lookbacks <- c("2M"=2*21)
-  use_lookbacks <- sort(c(use_lookbacks, tmp_lookbacks), decreasing=TRUE)
-  use_rtns <- list(r_cl_to_roll_hi_wkly)
-  names(use_rtns) <- c("Cl-to-Rolling-1W-Hi 1W Rtn")
-  for (rtn_name in names(use_rtns)) {
-    for (lb_name in names(use_lookbacks)) {
-      stat_name <- paste(lb_name, toPercent(confidence, digits=0), "Confidence", rtn_name)
-      stats_df[, stat_name] <- sapply(stats_df[, "Ticker"], function(tk) {
-        rtns_lb <- tail(use_rtns[[rtn_name]][, tk], use_lookbacks[lb_name])
-        res <- quantile(rtns_lb, probs=prob, na.rm=TRUE)
-        toPercent(res)
-      })
-    }
-  }
-}
 
 cat("Done.")
 
