@@ -36,7 +36,7 @@ start_date <- "1980-01-01"
 end_date <- format(Sys.Date())
 DDthreshold <- 20
 downSize <- 0.0025
-corr_tks <- c("SPY", "QQQ")
+corr_tks <- c("SPY", "QQQ", "SPYG", "SPYV", "IWM", "IGV", "SKYY")
 jan1998_td <- businessDaysBetween("UnitedStates/NYSE", as.Date("1998-01-01"), as.Date(end_date))
 lookbacks <- c(10, 21, 3*21, 6*21, 1*252, 3*252, 5*252, 10*252, 15*252, jan1998_td)
 names(lookbacks) <- c("2W", "1M", "3M", "6M", "1Y", "3Y", "5Y", "10Y", "15Y", "Since Jan 1998")
@@ -136,12 +136,13 @@ r_hi_daily <- (hiprices - lag(prices)) / lag(prices)
 r_open_daily <- (openprices - lag(prices)) / lag(prices)
 # calc daily spread as a ratio of close price
 r_spread_daily <- ((hiprices - loprices)) / prices
-r_spread_daily <- r_spread_daily[, !colnames(r_spread_daily) %in% c("SPY", "QQQ")]
 # calc rolling spreads
 rolling_spread_weekly <- (rolling_high_weekly - rolling_low_weekly) / prices
-rolling_spread_weekly <- rolling_spread_weekly[, !colnames(rolling_spread_weekly) %in% c("SPY", "QQQ")]
 rolling_spread_monthly <- (rolling_high_monthly - rolling_low_monthly) / prices
-rolling_spread_monthly <- rolling_spread_monthly[, !colnames(rolling_spread_monthly) %in% c("SPY", "QQQ")]
+# calc rolling monthly returns
+r_monthly <- (prices - lag(prices, k=22)) / lag(prices, k=22)
+r_three_monthly <- (prices - lag(prices, k=66)) / lag(prices, k=66)
+r_three_monthly_vs_qqq <- r_three_monthly - as.numeric(r_three_monthly[, 'QQQ'])
 cat("Done.")
 
 # Calc Inception to date(life_to_date)
@@ -346,30 +347,30 @@ stats_df[, "Distance to 1Y Mean Target Price"] <- toPercent(calc_dist_to_goal(pr
 stats_df[, "Distance to 1Y Median Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_median), plus_sign=TRUE)
 stats_df[, "Distance to 1Y Mean +1SD Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_mean + tp_sd), plus_sign=TRUE)
 stats_df[, "Distance to 1Y Mean Target Price (1Y Ago Lagged)"] <- toPercent(calc_dist_to_goal(prices, tp_mean_lag), plus_sign=TRUE)
-stats_df[, paste0("1M Median Daily Return")] <- toPercent(colMedians(last(r_daily[, !colnames(r_daily) %in% c("SPY", "QQQ")], "1 month"), na.rm=T))
-stats_df[, paste0("3M Median Daily Return")] <- toPercent(colMedians(last(r_daily[, !colnames(r_daily) %in% c("SPY", "QQQ")], "3 months"), na.rm=T))
-stats_df[, paste0("Lifetime Mean Daily Spread")] <- toPercent(colMeans(r_spread_daily, na.rm=T))
-stats_df[, paste0("3M Mean Daily Spread")] <- toPercent(colMeans(last(r_spread_daily, "3 months"), na.rm=T))
-stats_df[, paste0("3M Mean Weekly Spread")] <- toPercent(colMeans(last(rolling_spread_weekly, "3 months"), na.rm=T))
-stats_df[, paste0("6M Mean Monthly Spread")] <- toPercent(colMeans(last(rolling_spread_monthly, "6 months"), na.rm=T))
-stats_df[, paste0("Monthly Spread > 10% (Last 6M)")] <-toPercent(colSums(last(rolling_spread_monthly, "6 months") > 0.1, na.rm=T) / colSums(!is.na(last(rolling_spread_monthly, "6 months"))))
 
-r_monthly <- (prices - lag(prices, k=22)) / lag(prices, k=22)
-r_monthly <- r_monthly[, !colnames(r_monthly) %in% c("SPY", "QQQ")]
-r_three_monthly <- (prices - lag(prices, k=66)) / lag(prices, k=66)
-r_three_monthly_vs_qqq <- lapply(r_three_monthly, function(tk) {
-  temp <- tk - r_three_monthly[, 'QQQ']
-  colnames(temp) <- names(tk)
-  temp
-})
-r_three_monthly_vs_qqq <- do.call(merge, r_three_monthly_vs_qqq)
-r_three_monthly_vs_qqq <- r_three_monthly_vs_qqq[, !colnames(r_three_monthly_vs_qqq) %in% c("SPY", "QQQ")]
-stats_df[, paste0('Outperformance/Underperformance vs QQQ, 3M')] <- toPercent(last(r_three_monthly_vs_qqq, '1 day'))
-stats_df[, paste0("% of Time > 10% Within 1M (Last 3Y)")] <- toPercent(colSums(last(r_monthly, "3 years") > 0.1) / colSums(!is.na(last(r_monthly, "3 years"))))
-last_data_row = last(prices)
-last_data_date = index(last_data_row)[1]
-last_data_row = last_data_row[, !colnames(last_data_row) %in% c("SPY", "QQQ")]
-stats_df[, paste0("Close Price on ", last_data_date)] = t(last_data_row)
+# Add median return and mean spread
+stats_df[, "1M Median Daily Return"] <- toPercent(colMedians(last(r_daily[, stats_df[, "Ticker"]], "1 month"), na.rm=T))
+stats_df[, "3M Median Daily Return"] <- toPercent(colMedians(last(r_daily[, stats_df[, "Ticker"]], "3 months"), na.rm=T))
+stats_df[, "Lifetime Mean Daily Spread"] <- toPercent(colMeans(r_spread_daily[, stats_df[, "Ticker"]], na.rm=T))
+stats_df[, "3M Mean Daily Spread"] <- toPercent(colMeans(last(r_spread_daily[, stats_df[, "Ticker"]], "3 months"), na.rm=T))
+stats_df[, "3M Mean Weekly Spread"] <- toPercent(colMeans(last(rolling_spread_weekly[, stats_df[, "Ticker"]], "3 months"), na.rm=T))
+stats_df[, "6M Mean Monthly Spread"] <- toPercent(colMeans(last(rolling_spread_monthly[, stats_df[, "Ticker"]], "6 months"), na.rm=T))
+
+# Add "Monthly Spread > 10% (Last 6M)"
+roll_sprd_6M <- last(rolling_spread_monthly[, stats_df[, "Ticker"]], "6 months")
+stats_df[, "Monthly Spread > 10% (Last 6M)"] <- toPercent(colSums(roll_sprd_6M > 0.1, na.rm=T) / colSums(!is.na(roll_sprd_6M)))
+
+# Add "Outperformance/Underperformance vs QQQ, 3M"
+stats_df[, paste0("Outperformance/Underperformance vs QQQ, 3M")] <- toPercent(last(r_three_monthly_vs_qqq[, stats_df[, "Ticker"]], '1 day'))
+
+# Add "% of Time > 10% Within 1M (Last 3Y)"
+rtn_1m_last_3y <- last(r_monthly[, stats_df[, "Ticker"]], "3 years")
+stats_df[, paste0("% of Time > 10% Within 1M (Last 3Y)")] <- toPercent(colSums(rtn_1m_last_3y > 0.1) / colSums(!is.na(rtn_1m_last_3y)))
+
+# Add last close price
+last_data_row <- last(prices)
+last_data_date <- index(last_data_row)[1]
+stats_df[, paste0("Close Price on ", last_data_date)] <- t(last_data_row[, stats_df[, "Ticker"]])
 
 # Add max_lookbacks to df
 stats_df[, "max_lookbacks"] <- max_lookbacks[stats_df[, "Ticker"]]
@@ -507,9 +508,8 @@ stats_df <- move_col_after(stats_df, "3Y Return", "Market Cap (BN)")
 stats_df <- move_col_after(stats_df, "3Y Annualized Return {Sharpe}", "3Y Return")
 stats_df <- move_col_after(stats_df, "1Y Annualized Return {Sharpe}", "3Y Annualized Return {Sharpe}")
 stats_df <- move_col_after(stats_df, "EPS", "1Y Annualized Return {Sharpe}")
-stats_df <- move_col_after(stats_df, "SPY correlation(3M)", "EPS")
-stats_df <- move_col_after(stats_df, "QQQ correlation(3M)", "SPY correlation(3M)")
-stats_df <- move_col_after(stats_df, "Outperformance/Underperformance vs QQQ, 3M", "QQQ correlation(3M)")
+stats_df <- move_col_after(stats_df, grep("correlation", names(stats_df), value=TRUE), "EPS")
+stats_df <- move_col_after(stats_df, "Outperformance/Underperformance vs QQQ, 3M", "SKYY correlation(3M)")
 stats_df <- move_col_after(stats_df, "3M Sharpe", "Outperformance/Underperformance vs QQQ, 3M")
 stats_df <- move_col_after(stats_df, "3M Median Daily Return", "3M Sharpe")
 stats_df <- move_col_after(stats_df, "1M Median Daily Return", "3M Median Daily Return")
