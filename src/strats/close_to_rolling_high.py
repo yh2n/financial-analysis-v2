@@ -117,7 +117,7 @@ def ctrh_returns(close_prices, hi_prices, top_k, dump_period=None):
 def ctrh_conf_returns(close_prices, hi_prices, top_k, dump_period=None):
     """Runs `top_score_limit` strategy according to:
         1. 10th percentile close_to_rolling_high over the past 3 months
-        2. where that value is greater than 10th percentile ctrh over the
+        2. where that value is less than 10th percentile ctrh over the
             most recent month.
 
     The score (and therefore sell_limit) is the 3m value.
