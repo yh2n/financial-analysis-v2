@@ -143,3 +143,4 @@ scorecard/*.RData
 scorecard/.Rhistory
 scorecard/.Rproj.user
 personal-notebooks/
+scorecard/factset_secrets.json
