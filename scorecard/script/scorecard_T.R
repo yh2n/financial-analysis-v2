@@ -14,7 +14,7 @@ library(quantmod)
 library(RQuantLib)
 library(PerformanceAnalytics)
 source(paste0(SCRIPT_PATH, "get_prices.R"))
-source(paste0(SCRIPT_PATH, "get_target_price.R"))
+source(paste0(SCRIPT_PATH, "get_target_prices.R"))
 source(paste0(SCRIPT_PATH, "get_earnings.R"))
 source(paste0(SCRIPT_PATH, "format_number.R"))
 source(paste0(SCRIPT_PATH, "move_col_after.R"))
@@ -46,7 +46,7 @@ period_gteq_1y <- c("15Y", "10Y", "5Y", "3Y", "1Y", "Since Jan 1998", "Since Inc
 period_less_1y <- names(lookbacks)[!(names(lookbacks) %in% period_gteq_1y)]
 
 if(TESTING_MODE) {
-  end_date <- "2021-02-25"
+  end_date <- "2021-03-22"
   basket <- "scorecard_single_ticker_TESTING_ONLY"
   # basket <- "scorecard_single_ticker"
 }
@@ -93,14 +93,15 @@ openprices <- as.xts(openprices)
 cat("Open prices read from file ",openpricefile, "\n")
 
 # download target prices and find last price
-tp_use_col <- c("tp_mean_est", "tp_median_est", "tp_high_est", "tp_low_est", "tp_std_dev_est")
-tp_list_last <- get_last_target_price(tickers=all_tks, start=as.Date(end_date)-100, end=end_date, use_col=tp_use_col)
-tp_mean <- tp_list_last$tp_mean_est
-tp_median <- tp_list_last$tp_median_est
-tp_high <- tp_list_last$tp_high_est
-tp_low <- tp_list_last$tp_low_est
-tp_sd <- tp_list_last$tp_std_dev_est
-tp_mean_lag <- get_last_target_price(tickers=all_tks, start=as.Date(end_date)-465, end=as.Date(end_date)-365, use_col="tp_mean_est")$tp_mean_est
+tp_use_cols <- c("mean", "median", "high", "low", "standardDeviation")
+tp_list <- get_target_prices(tickers=all_tks, start=as.Date(end_date)-400, end=end_date)
+tp_list_last <- find_last_target_prices(tp_list, use_cols=tp_use_cols)
+tp_mean <- tp_list_last$mean
+tp_median <- tp_list_last$median
+tp_high <- tp_list_last$high
+tp_low <- tp_list_last$low
+tp_sd <- tp_list_last$standardDeviation
+tp_mean_lag <- find_last_target_prices(tp_list, use_cols="mean", n_lag=252)$mean
 
 # download earnings and find last earnings
 earnings_list <- get_earnings(tickers=all_tks, start=as.Date(end_date)-365, end=end_date)
