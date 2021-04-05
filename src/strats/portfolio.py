@@ -42,6 +42,12 @@ def dict_to_df(dicto):
     return pd.DataFrame(dicto.values(), index=dicto.keys())
 
 
+def valid_range(df):
+    valid_dates = slice(df.first_valid_index(),
+                        df.last_valid_index())
+    return df.loc[valid_dates]
+
+
 class Portfolio:
     def __init__(self, close_prices):
         self._trading_days = close_prices.index.to_series()
@@ -153,14 +159,13 @@ class Portfolio:
         # default to 0 for tickers still held.
         returns_all_days = returns.where(
             ~returns.isna().all(axis=1), self.holdings * 0)
-        valid_range = slice(returns_all_days.first_valid_index(),
-                            returns_all_days.last_valid_index())
-        return returns_all_days.loc[valid_range]
+        return valid_range(returns_all_days)
 
     @property
     def holdings(self):
-        return dict_to_df(self._holdings) \
+        holdings = dict_to_df(self._holdings) \
             .reindex(self._trading_days, method='ffill')
+        return valid_range(holdings)
 
     @property
     def holding_returns(self):
@@ -176,7 +181,8 @@ class Portfolio:
         """
         buy_prices = dict_to_df(self._last_buy_prices) \
             .reindex(self._trading_days, method='ffill')
-        return (self.holdings * self._close_prices / buy_prices) - 1
+        holding_returns = (self.holdings * self._close_prices / buy_prices) - 1
+        return valid_range(holding_returns)[buy_prices.columns]
 
     @property
     def buy_signals(self):
