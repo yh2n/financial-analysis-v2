@@ -10,7 +10,7 @@ from strats.portfolio import Portfolio
 log = logging.getLogger('sharpe_rollover')
 
 
-def sharpe(returns, freq='daily'):
+def sharpe(returns, freq='daily', verbose=False):
     """Calculate the annualized Sharpe ratio.
 
     Parameters
@@ -29,12 +29,14 @@ def sharpe(returns, freq='daily'):
         raise ValueError("freq must be one of 'daily' or 'monthly'")
 
     if (~returns.isna()).sum() == 1:
-        log.warn(
-            'Sharpe undefined because there was only one '
-            'traded day in window.')
+        if verbose:
+            log.warn(
+                'Sharpe undefined because there was only one '
+                'traded day in window.')
         return np.nan
     elif (returns[~returns.isna()] == 0).all():
-        log.warn('Sharpe undefined because all returns were 0.')
+        if verbose:
+            log.warn('Sharpe undefined because all returns were 0.')
         return np.nan
 
     return np.mean(returns) / np.std(returns) * (annualize_factor ** 0.5)
@@ -105,7 +107,7 @@ def sharpe_rollover_returns(
     end = close_prices.index[-1]
     trade_dates = get_trade_dates(start, end, hold_duration)
 
-    p = Portfolio()
+    p = Portfolio(close_prices)
 
     for i, rollover in enumerate(trade_dates):
         if not p.tickers_held.empty:

@@ -50,7 +50,7 @@ def _top_score_limit_returns(
     entry = entry or scores.first_valid_index()
 
     days_run = 0
-    p = Portfolio()
+    p = Portfolio(close_prices)
 
     if one_week_only:
         dump_period = 5
