@@ -173,6 +173,8 @@ class Portfolio:
         the returns that would be realised if they were sold at that
         point.
 
+        NOTE: Does not currently reflect different position weights.
+
         Returns
         -------
         pd.DataFrame
@@ -206,5 +208,6 @@ class Portfolio:
         return {
             'mean': mean,
             'stddev': stddev,
-            'sharpe': mean / stddev * (252 ** 0.5)
+            'sharpe': mean / stddev * (252 ** 0.5),
+            'num_traded_days': (~self.sell_signals.isna()).any(axis=1).sum()
         }
