@@ -38,39 +38,60 @@ def validate_weights(tickers, weights):
     return weights
 
 
+def dict_to_df(dicto):
+    return pd.DataFrame(dicto.values(), index=dicto.keys())
+
+
+def valid_range(df):
+    valid_dates = slice(df.first_valid_index(),
+                        df.last_valid_index())
+    return df.loc[valid_dates]
+
+
 class Portfolio:
-    def __init__(self):
+    def __init__(self, close_prices):
+        self._trading_days = close_prices.index.to_series()
+        self._close_prices = close_prices
+
         self._positions = pd.Series(dtype=float)
         self.last_buy_price = pd.Series(dtype=float)
-        self.days_held = pd.Series(dtype=float)
 
         self._returns = defaultdict(lambda: pd.Series(dtype=float))
-        self._holding_returns = defaultdict(lambda: pd.Series(dtype=float))
         self._buy_signals = defaultdict(lambda: pd.Series(dtype=float))
         self._sell_signals = defaultdict(lambda: pd.Series(dtype=float))
+        self._holdings = defaultdict(lambda: pd.Series(dtype=float))
+        self._last_buy_prices = defaultdict(lambda: pd.Series(dtype=float))
 
     def buy(self, day, tickers, prices, weights=1.0):
         if not isinstance(weights, (int, float)) or weights != 1.0:
             raise ValueError('Fractional buying not yet implemented.')
 
         tickers = validate_tickers(tickers)
+        if tickers.empty:
+            return
+
         validate_prices(tickers, prices)
         weights = validate_weights(tickers, weights)
 
         self._positions = union_add(self._positions, weights)
-        self.last_buy_price = union_add(self.last_buy_price, prices[tickers])
+        self.last_buy_price = union_add(
+            self.last_buy_price, prices[tickers] * weights)
         self._buy_signals[day] = union_add(self._buy_signals[day], weights)
 
-        new_hold = self._positions[tickers] == weights
+        next_day = self._next_trading_day(day)
+        if next_day:
+            self._holdings[next_day] = self._positions.copy()
 
-        self.days_held = union_add(
-            self.days_held, pd.Series(0, index=new_hold.index))
+        self._last_buy_prices[day] = self.last_buy_price.copy()
 
     def sell(self, day, tickers, prices, weights=1.0):
         if not isinstance(weights, (int, float)) or weights != 1.0:
             raise ValueError('Fractional selling not yet implemented.')
 
         tickers = validate_tickers(tickers)
+        if tickers.empty:
+            return
+
         validate_prices(tickers, prices)
         weights = validate_weights(tickers, weights)
 
@@ -83,31 +104,33 @@ class Portfolio:
 
         closed_positions = self.tickers_held[self._positions == 0]
 
-        self.days_held.drop(closed_positions, inplace=True)
         self._positions.drop(closed_positions, inplace=True)
         self.last_buy_price.drop(closed_positions, inplace=True)
 
-    def tick(self, day, prices):
+        next_day = self._next_trading_day(day)
+        if next_day:
+            self._holdings[next_day] = self._positions.copy()
+
+    def _next_trading_day(self, day):
+        """Next trading day, according to self._trading_days as extracted
+        from the price series.
+
+        Used for cases where an action should be associated with the following
+        day for some bookkeeping. E.g. `self.holdings` returns what was held
+        at the beginning of a day, so should reflect buys from the
+        previous day.
+
+        Returns
+        -------
+        pd.Timestamp, None:
+            None if next day is not in the period.
         """
-        It's natural to update some quantities day-by-day, and that's
-        what this `tick` method is intended to do.
+        next_day = self._trading_days.shift(-1)[day]
+        return next_day if not pd.isnull(next_day) else None
 
-        One issue is this requires that the caller know to call this
-        on every loop of a daily strategy (and that such a loop exists).
-
-        This would become less of an issue if we standardised a
-        strategy-running engine.
-
-        `self._returns` is updated to set returns for all positions to 0 if
-        not currently set, to reflect that unsold positions generate 0 returns.
-        `union_add` is used so no assumptions are made about when `sell` may be
-        called for this `day`.
-        """
-        self._returns[day] = union_add(self._returns[day],
-                                       pd.Series(0.0, index=self.tickers_held))
-        self._holding_returns[day] = (prices[self.tickers_held]
-                                      / self.last_buy_price) - 1
-        self.days_held += 1
+    def _tdays_between(self, day1, day2):
+        return self._trading_days.index.get_loc(day2) - \
+            self._trading_days.index.get_loc(day1)
 
     @property
     def tickers_held(self):
@@ -115,19 +138,73 @@ class Portfolio:
 
     @property
     def returns(self):
-        return pd.DataFrame(self._returns.values(), index=self._returns.keys())
+        """Daily (traded) returns.
+
+        Zero on the days where no trades took place but where positions
+        were still held.
+
+        Returns
+        -------
+        pd.DataFrame
+            of all trading days, for each ticker ever held over the backtest
+        """
+        returns = dict_to_df(self._returns)
+        relevant_tickers = self.holdings.columns.union(returns.columns)
+
+        returns = returns.reindex(
+            index=self._trading_days,
+            columns=relevant_tickers)
+
+        # On days where returns weren't generated from sells,
+        # default to 0 for tickers still held.
+        returns_all_days = returns.where(
+            ~returns.isna().all(axis=1), self.holdings * 0)
+        return valid_range(returns_all_days)
+
+    @property
+    def holdings(self):
+        holdings = dict_to_df(self._holdings) \
+            .reindex(self._trading_days, method='ffill')
+        return valid_range(holdings)
 
     @property
     def holding_returns(self):
-        return pd.DataFrame(self._holding_returns.values(),
-                            index=self._holding_returns.keys())
+        """At each time step, for positions held at that time,
+        the returns that would be realised if they were sold at that
+        point.
+
+        Returns
+        -------
+        pd.DataFrame
+            of all trading days, for each ticker ever held over the backtest.
+            Entries are NaN for tickers not held on those days.
+        """
+        buy_prices = dict_to_df(self._last_buy_prices) \
+            .reindex(self._trading_days, method='ffill')
+        holding_returns = (self.holdings * self._close_prices / buy_prices) - 1
+        return valid_range(holding_returns)[buy_prices.columns]
 
     @property
     def buy_signals(self):
-        return pd.DataFrame(self._buy_signals.values(),
-                            index=self._buy_signals.keys())
+        return dict_to_df(self._buy_signals)
 
     @property
     def sell_signals(self):
-        return pd.DataFrame(self._sell_signals.values(),
-                            index=self._sell_signals.keys())
+        return dict_to_df(self._sell_signals)
+
+    @property
+    def days_held(self):
+        return self.tickers_held.to_series() \
+            .apply(lambda tick: self._tdays_between(
+                self.buy_signals[tick].last_valid_index(),
+                self.holdings[tick].last_valid_index()))
+
+    def stats(self):
+        returns = self.returns.mean(axis=1)
+        mean = returns.mean()
+        stddev = returns.std()
+        return {
+            'mean': mean,
+            'stddev': stddev,
+            'sharpe': mean / stddev * (252 ** 0.5)
+        }
