@@ -20,6 +20,30 @@ def read_daily_ff_file(path):
     return data / 100
 
 
+def _yearmonth_to_datetime(yearmonth_int):
+    """Takes a 'yearmonth' integer (so January 1970 would
+    be `197001`) and returns the `pd.Timestamp` for the first day
+    of that month.
+
+    Parameters
+    ----------
+    yearmonth_int
+
+    Returns
+    -------
+    pd.Timestamp
+    """
+    yearmonth = str(yearmonth_int)
+
+    year = int(yearmonth[:4])
+    month = int(yearmonth[-2:])
+
+    return pd.Timestamp(
+        year=year,
+        month=month,
+        day=1)
+
+
 def run_aligned_ols(endog, exog):
     endog, exog = _align_dfs(endog.dropna(), exog)
     return OLS(endog, add_constant(exog)).fit()
@@ -50,25 +74,50 @@ def _align_dfs(df1, df2):
     return df1, df2
 
 
-def _yearmonth_to_datetime(yearmonth_int):
-    """Takes a 'yearmonth' integer (so January 1970 would
-    be `197001`) and returns the `pd.Timestamp` for the first day
-    of that month.
+# The returns aggregators below may end up better suited in a more general
+# utils file, but have so far only been used in the FF analyses.
+def monthly_returns(series, is_return_series=True):
+    if is_return_series:
+        series = series + 1
+    grouped = series.groupby(series.index.to_period('M'))
+    if is_return_series:
+        return grouped.prod() - 1
+    return grouped.last() / grouped.first() - 1
+
+
+def returns_over_periods(daily_returns, periods, is_return_series=True):
+    """Calculates the total returns for each period in `periods`.
 
     Parameters
     ----------
-    yearmonth_int
+    daily_returns : pd.Series
+    periods : list of pd.Timestamp slices
 
     Returns
     -------
-    pd.Timestamp
+    pd.Series
+        The index corresponds to the endpoints of the `periods`; value is the
+        total returns within that period.
     """
-    yearmonth = str(yearmonth_int)
+    daily_returns = daily_returns.loc[:periods[-1].stop]
+    period_end = daily_returns.index.to_series().apply(
+        lambda date: _period_end_for_date(date, periods))
+    return (1 + daily_returns).groupby(period_end).prod() - 1
 
-    year = int(yearmonth[:4])
-    month = int(yearmonth[-2:])
 
-    return pd.Timestamp(
-        year=year,
-        month=month,
-        day=1)
+def returns_over_periods_from_prices(daily_prices, periods):
+    """As `returns_over_periods`, but calculates returns from `daily_prices`
+    first.
+    """
+    period_end = daily_prices.index.to_series().apply(
+        lambda date: _period_end_for_date(date, periods))
+
+    return returns_over_periods(
+        daily_prices.groupby(period_end).pct_change(), periods)
+
+
+def _period_end_for_date(date, periods):
+    for period in periods:
+        if date >= period.start and date < period.stop:
+            return period.stop
+    raise ValueError(f'Date {date} not in any period.')
