@@ -19,6 +19,7 @@ source(paste0(SCRIPT_PATH, "get_earnings.R"))
 source(paste0(SCRIPT_PATH, "format_number.R"))
 source(paste0(SCRIPT_PATH, "move_col_after.R"))
 source(paste0(SCRIPT_PATH, "get_market_cap.R"))
+source(paste0(SCRIPT_PATH, "calc_benchmark_beta.R"))
 
 TESTING_MODE <- FALSE
 
@@ -169,16 +170,14 @@ stats_colnames <- c(
   "Ticker",
   as.vector(rbind(rtn_colnames, rtn_ann_colnames, sharpe_colnames)), 
   "N 20+days UP Periods",
-  "Beta Up",
+  "Beta (DD Trough to Recovery)",
   "N 20+days DOWN Periods",
-  "Beta Down",
-  "Beta up to 3yr",
+  "Beta (DD Peak to Trough)",
   "Up/QQQ down"
 )
 stats_colClasses <- c(
   "character",
   rep("numeric", length(c(rtn_colnames, rtn_ann_colnames, sharpe_colnames))),
-  "character",
   "character",
   "character",
   "character",
@@ -280,22 +279,9 @@ for(k in tkr_list) {
     str_stats <- c(str_stats, "NA", "NA", "NA", "NA")
   }
   
-  # Calc Beta for last three years or starting trading date
-  iv <- NROW(prices) - lookbacks["3Y"] + 1
-  im <- min(which(!is.na(r_daily[, k]))) # if available length < lookback, use whatever there is
-  if(iv < im) iv <- im
-  if(NROW(prices) - iv > 10) {
-    y <- r_daily[iv:NROW(prices), k]
-    x <- r_daily[iv:NROW(prices), "SPY"]
-    fit <- lm(y ~ x)
-    beta <- summary(fit)$coefficients[2, 1]
-    str_stats <- c(str_stats, formatC(beta, digits=2, format="f"))
-  } else {
-    str_stats <- c(str_stats, NA)
-  }
-  
   # Calc percent of Up times during QQQ down for the last two years
   iv <- NROW(prices) - lookback_2Y
+  im <- min(which(!is.na(r_daily[, k])))
   if(iv < im){
     iv <- im
   }
@@ -321,6 +307,15 @@ for(k in tkr_list) {
   colnames(stats_k_df) <- stats_colnames
   stats_df <- rbind(stats_df, stats_k_df)
 }
+
+# Add Beta (3Y)
+stats_df[, "Beta (3Y)"] <- toDecimalPlaces(
+  calc_benchmark_beta(r_daily, lookbacks["3Y"], stats_df[, "Ticker"], "SPY"), 2)
+
+# Add Beta (SPY UP, 2Y)
+stats_df[, "Beta (SPY UP, 2Y)"] <- toDecimalPlaces(
+  calc_benchmark_beta(r_daily, lookback_2Y, stats_df[, "Ticker"], "SPY",
+                      pos_only=TRUE), 2)
 
 # Calc correlations to corr_tks
 for (cor_tk in corr_tks) {
@@ -523,7 +518,8 @@ stats_df <- move_col_after(stats_df, "Distance to 1Y Mean +1SD Target Price", "D
 stats_df <- move_col_after(stats_df, "Distance to 1Y Mean Target Price (1Y Ago Lagged)", "Distance to 1Y Mean +1SD Target Price")
 stats_df <- move_col_after(stats_df, "Price Relative to 200D SMA", "Distance to 1Y Mean Target Price (1Y Ago Lagged)")
 stats_df <- move_col_after(stats_df, "Price Relative to 50D SMA", "Price Relative to 200D SMA")
-stats_df <- move_col_after(stats_df, "Beta up to 3yr", "Price Relative to 50D SMA")
+stats_df <- move_col_after(stats_df, "Beta (3Y)", "Price Relative to 50D SMA")
+stats_df <- move_col_after(stats_df, "Beta (SPY UP, 2Y)", "Beta (3Y)")
 stats_df <- move_col_after(stats_df, "Since Jan 1998 Annualized Return {Sharpe}", "Since Inception/1980 Sharpe")
 stats_df <- move_col_after(stats_df, "Since Jan 1998 Sharpe", "Since Jan 1998 Annualized Return {Sharpe}")
 stats_df <- move_col_after(stats_df, "Lifetime Mean Daily Spread", "Monthly Spread > 10% (Last 6M)")
