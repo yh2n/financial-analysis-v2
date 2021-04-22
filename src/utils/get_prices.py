@@ -1,5 +1,7 @@
 import os
 
+import time
+
 import pandas_datareader.data as web
 import pandas as pd
 import numpy as np
@@ -78,8 +80,61 @@ def get_prices(tickers,
     return df
 
 
+def get_tiingo_prices(tickers, start, end):
+    """Wrapper to fetch Tiingo prices.
+
+    Naively using pandas_datareader doesn't work, since if a ticker in
+    `tickers` has no data over `start`-`end`, a `KeyError` exception is
+    raised.
+
+    Two things must be done:
+        1. The problem exception must be handled
+        2. Tickers must be fetched one-at-a-time to prevent missing data
+           in batches that contain a ticker with no data.
+
+
+    For future, the actual fix would be a simple PR to make to the
+    pandas_datareader repo.
+
+    Returns
+    -------
+    pd.DataFrame
+    """
+
+    all_results = []
+
+    # Sort tickers so that error logging can be used to identify progress
+    tickers = sorted(tickers)
+
+    for i, ticker in enumerate(tickers):
+        try:
+            df = web.DataReader(name=ticker,
+                                data_source='tiingo',
+                                start=start,
+                                end=end,
+                                api_key=os.getenv('TIINGO_API_KEY'))
+            df = df[['adjClose']]
+        except KeyError as e:
+            if e.args[0] == 'date':
+                # Patch to handle issue in pandas_datareader
+                # where empty results cause a KeyError
+                print(f'Got empty df for i={i}, ticker={tickers[i]}')
+                df = pd.DataFrame()
+        except Exception as e:
+            print('Received an unexpected error:', e)
+            print(f'Only fetched up to {i-1} inclusive. Returning.')
+            return pd.concat(all_results)
+
+        if (i % 50 == 0) and i > 0:
+            # Sleep to avoid timeouts. Empirically found 20s to be sufficient
+            time.sleep(20)
+
+        all_results.append(df)
+    return pd.concat(all_results)
+
+
 def get_prices_from_source(tickers, start, end, source, types=None):
-    """Download daily prices from Yahoo!."""
+    """Download daily prices from Yahoo!"""
     if types is not None and not all(i in VALID_TYPES[source] for i in types):
         raise ValueError(
             f"Wrong 'types' provided for source {source}. Must be chosen from "
@@ -87,17 +142,20 @@ def get_prices_from_source(tickers, start, end, source, types=None):
 
     params = {}
     if source == 'tiingo':
-        params['api_key'] = os.getenv('TIINGO_API_KEY')
-
-    df = web.DataReader(name=tickers,
-                        data_source=source,
-                        start=start,
-                        end=end,
-                        **params)
+        df = get_tiingo_prices(tickers, start, end)
+    else:
+        df = web.DataReader(name=tickers,
+                            data_source=source,
+                            start=start,
+                            end=end,
+                            **params)
     df = df.rename(mapper=TYPE_MAPPERS[source], axis=1)
 
     if source == 'tiingo':
         df = df.unstack(level=0)
+
+    if df.empty:
+        return df
 
     df.index.name = 'date'
     df.columns.names = ['attributes', 'symbols']
