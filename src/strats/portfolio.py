@@ -138,28 +138,13 @@ class Portfolio:
 
     @property
     def returns(self):
-        """Daily (traded) returns.
+        return dict_to_df(self._returns)
 
-        Zero on the days where no trades took place but where positions
-        were still held.
-
-        Returns
-        -------
-        pd.DataFrame
-            of all trading days, for each ticker ever held over the backtest
-        """
-        returns = dict_to_df(self._returns)
-        relevant_tickers = self.holdings.columns.union(returns.columns)
-
-        returns = returns.reindex(
-            index=self._trading_days,
-            columns=relevant_tickers)
-
-        # On days where returns weren't generated from sells,
-        # default to 0 for tickers still held.
-        returns_all_days = returns.where(
-            ~returns.isna().all(axis=1), self.holdings * 0)
-        return valid_range(returns_all_days)
+    @property
+    def daily_returns(self):
+        all_returns = self._close_prices.pct_change()[self.holdings.columns]
+        daily_returns = self.holdings * all_returns
+        return daily_returns.mean(axis=1).dropna()
 
     @property
     def holdings(self):
@@ -202,7 +187,7 @@ class Portfolio:
                 self.holdings[tick].last_valid_index()))
 
     def stats(self):
-        returns = self.returns.mean(axis=1)
+        returns = self.daily_returns
         mean = returns.mean()
         stddev = returns.std()
         return {
