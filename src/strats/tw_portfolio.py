@@ -109,7 +109,5 @@ def bottom_k_total_corr_criteria(corrs1, corrs2, k):
     -------
     pd.DataFrame
     """
-    max_corr = corrs1.columns.to_series().apply(
-        lambda tick: np.maximum(corrs1.abs()[tick], corrs2.abs()[tick])).T
 
-    return max_corr.apply(lambda series: series.rank() < k, axis=1)
+    return np.maximum(corrs1.abs(), corrs2.abs()).rank(axis=1) < k
