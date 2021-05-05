@@ -14,13 +14,15 @@ library(quantmod)
 library(RQuantLib)
 library(PerformanceAnalytics)
 source(paste0(SCRIPT_PATH, "get_prices.R"))
-source(paste0(SCRIPT_PATH, "get_target_prices.R"))
 source(paste0(SCRIPT_PATH, "get_earnings.R"))
 source(paste0(SCRIPT_PATH, "format_number.R"))
 source(paste0(SCRIPT_PATH, "move_col_after.R"))
 source(paste0(SCRIPT_PATH, "get_market_cap.R"))
+source(paste0(SCRIPT_PATH, "calc_benchmark_beta.R"))
 
 TESTING_MODE <- FALSE
+TESTING_END_DATE <- "2020-04-13"
+TESTING_BASKET <- "scorecard_single_ticker_TESTING_ONLY"
 
 
 # Inputs ---------------------------------------
@@ -28,8 +30,6 @@ datasource <- "T"
 
 # basket
 basket <- "scorecard_single_ticker"
-# basket <- "scorecard_new_vista_T"
-# basket <- "scorecard_ETF"
 
 # other parameters
 start_date <- "1980-01-01"
@@ -46,9 +46,8 @@ period_gteq_1y <- c("15Y", "10Y", "5Y", "3Y", "1Y", "Since Jan 1998", "Since Inc
 period_less_1y <- names(lookbacks)[!(names(lookbacks) %in% period_gteq_1y)]
 
 if(TESTING_MODE) {
-  end_date <- "2021-03-22"
-  basket <- "scorecard_single_ticker_TESTING_ONLY"
-  # basket <- "scorecard_single_ticker"
+  end_date <- TESTING_END_DATE
+  basket <- TESTING_BASKET
 }
 
 # tickers 
@@ -92,17 +91,6 @@ openprices <- read.zoo(openpricefile, sep=",", index.column=1, header=TRUE, chec
 openprices <- as.xts(openprices)
 cat("Open prices read from file ",openpricefile, "\n")
 
-# download target prices and find last price
-tp_use_cols <- c("mean", "median", "high", "low", "standardDeviation")
-tp_list <- get_target_prices(tickers=all_tks, start=as.Date(end_date)-400, end=end_date)
-tp_list_last <- find_last_target_prices(tp_list, use_cols=tp_use_cols)
-tp_mean <- tp_list_last$mean
-tp_median <- tp_list_last$median
-tp_high <- tp_list_last$high
-tp_low <- tp_list_last$low
-tp_sd <- tp_list_last$standardDeviation
-tp_mean_lag <- find_last_target_prices(tp_list, use_cols="mean", n_lag=252)$mean
-
 # download earnings and find last earnings
 earnings_list <- get_earnings(tickers=all_tks, start=as.Date(end_date)-365, end=end_date)
 earnings <- unlist(lapply(earnings_list, function(tk) {
@@ -117,13 +105,9 @@ market_cap <- unlist(lapply(market_cap_list, function(tk) {
 
 # calc rolling high/low prices
 cat("\nCalculating rolling Hi/Lo prices...")
-# rolling week high prices
 rolling_high_weekly <- rollapply(hiprices, width=5, FUN=max, align="right")
-# rolling week low prices
 rolling_low_weekly <- rollapply(loprices, width=5, FUN=min, align="right")
-# rolling month high prices
 rolling_high_monthly <- rollapply(hiprices, width=22, FUN=max, align="right")
-# rolling month low prices
 rolling_low_monthly <- rollapply(loprices, width=22, FUN=min, align="right")
 cat("Done.")
 
@@ -169,16 +153,14 @@ stats_colnames <- c(
   "Ticker",
   as.vector(rbind(rtn_colnames, rtn_ann_colnames, sharpe_colnames)), 
   "N 20+days UP Periods",
-  "Beta Up",
+  "Beta (DD Trough to Recovery)",
   "N 20+days DOWN Periods",
-  "Beta Down",
-  "Beta up to 3yr",
+  "Beta (DD Peak to Trough)",
   "Up/QQQ down"
 )
 stats_colClasses <- c(
   "character",
   rep("numeric", length(c(rtn_colnames, rtn_ann_colnames, sharpe_colnames))),
-  "character",
   "character",
   "character",
   "character",
@@ -280,22 +262,9 @@ for(k in tkr_list) {
     str_stats <- c(str_stats, "NA", "NA", "NA", "NA")
   }
   
-  # Calc Beta for last three years or starting trading date
-  iv <- NROW(prices) - lookbacks["3Y"] + 1
-  im <- min(which(!is.na(r_daily[, k]))) # if available length < lookback, use whatever there is
-  if(iv < im) iv <- im
-  if(NROW(prices) - iv > 10) {
-    y <- r_daily[iv:NROW(prices), k]
-    x <- r_daily[iv:NROW(prices), "SPY"]
-    fit <- lm(y ~ x)
-    beta <- summary(fit)$coefficients[2, 1]
-    str_stats <- c(str_stats, formatC(beta, digits=2, format="f"))
-  } else {
-    str_stats <- c(str_stats, NA)
-  }
-  
   # Calc percent of Up times during QQQ down for the last two years
   iv <- NROW(prices) - lookback_2Y
+  im <- min(which(!is.na(r_daily[, k])))
   if(iv < im){
     iv <- im
   }
@@ -322,6 +291,15 @@ for(k in tkr_list) {
   stats_df <- rbind(stats_df, stats_k_df)
 }
 
+# Add Beta (3Y)
+stats_df[, "Beta (3Y)"] <- toDecimalPlaces(
+  calc_benchmark_beta(r_daily, lookbacks["3Y"], stats_df[, "Ticker"], "SPY"), 2)
+
+# Add Beta (SPY UP, 2Y)
+stats_df[, "Beta (SPY UP, 2Y)"] <- toDecimalPlaces(
+  calc_benchmark_beta(r_daily, lookback_2Y, stats_df[, "Ticker"], "SPY",
+                      pos_only=TRUE), 2)
+
 # Calc correlations to corr_tks
 for (cor_tk in corr_tks) {
   cor_lb_name <- "3M"
@@ -335,19 +313,6 @@ for (cor_tk in corr_tks) {
     )
   })
 }
-
-# Add dist to target prices
-calc_dist_to_goal <- function(p, goal) {
-  if(!is.null(goal)) {
-    return(goal[stats_df[, "Ticker"]] / as.numeric(last(p[, stats_df[, "Ticker"]])) - 1)
-  } else {
-    return(NA)
-  }
-}
-stats_df[, "Distance to 1Y Mean Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_mean), plus_sign=TRUE)
-stats_df[, "Distance to 1Y Median Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_median), plus_sign=TRUE)
-stats_df[, "Distance to 1Y Mean +1SD Target Price"] <- toPercent(calc_dist_to_goal(prices, tp_mean + tp_sd), plus_sign=TRUE)
-stats_df[, "Distance to 1Y Mean Target Price (1Y Ago Lagged)"] <- toPercent(calc_dist_to_goal(prices, tp_mean_lag), plus_sign=TRUE)
 
 # Add median return and mean spread
 stats_df[, "1M Median Daily Return"] <- toPercent(colMedians(last(r_daily[, stats_df[, "Ticker"]], "1 month"), na.rm=T))
@@ -394,9 +359,18 @@ rtn_to_avg <- paste0(c("6M", "1Y", "3Y", "5Y", "10Y", "15Y"), " Return(Annualize
 avg_ann_rtn <- rowMeans(stats_df[, rtn_to_avg], na.rm=T)
 stats_df[, "Avg Annualized Returns"] <- avg_ann_rtn
 
+calc_dist_to_goal <- function(p, goal, tks) {
+  if(!is.null(goal)) {
+    return(goal[tks] / as.numeric(last(p[, tks])) - 1)
+  } else {
+    return(NA)
+  }
+}
+
 # Add distance to 52-week-high
 high_price_52_week <- sapply(tail(prices, 252), function(tk){max(na.omit(tk))})
-stats_df[,"Distance to 52-Week High"] <- toPercent(calc_dist_to_goal(prices, high_price_52_week))
+stats_df[,"Distance to 52-Week High"] <- toPercent(
+  calc_dist_to_goal(prices, high_price_52_week, stats_df[, "Ticker"]))
 
 # calc distance in SD from SMA
 calc_dist_from_sma_in_sd <- function(p, sma_len) {
@@ -517,13 +491,10 @@ stats_df <- move_col_after(stats_df, "1M Median Daily Return", "3M Median Daily 
 stats_df <- move_col_after(stats_df, "% of Time > 10% Within 1M (Last 3Y)", "1M Median Daily Return")
 stats_df <- move_col_after(stats_df, "Avg Annualized Returns", "% of Time > 10% Within 1M (Last 3Y)")
 stats_df <- move_col_after(stats_df, "Distance to 52-Week High", "Avg Annualized Returns")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Median Target Price", "Distance to 52-Week High")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Mean Target Price", "Distance to 1Y Median Target Price")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Mean +1SD Target Price", "Distance to 1Y Mean Target Price")
-stats_df <- move_col_after(stats_df, "Distance to 1Y Mean Target Price (1Y Ago Lagged)", "Distance to 1Y Mean +1SD Target Price")
-stats_df <- move_col_after(stats_df, "Price Relative to 200D SMA", "Distance to 1Y Mean Target Price (1Y Ago Lagged)")
+stats_df <- move_col_after(stats_df, "Price Relative to 200D SMA", "Distance to 52-Week High")
 stats_df <- move_col_after(stats_df, "Price Relative to 50D SMA", "Price Relative to 200D SMA")
-stats_df <- move_col_after(stats_df, "Beta up to 3yr", "Price Relative to 50D SMA")
+stats_df <- move_col_after(stats_df, "Beta (3Y)", "Price Relative to 50D SMA")
+stats_df <- move_col_after(stats_df, "Beta (SPY UP, 2Y)", "Beta (3Y)")
 stats_df <- move_col_after(stats_df, "Since Jan 1998 Annualized Return {Sharpe}", "Since Inception/1980 Sharpe")
 stats_df <- move_col_after(stats_df, "Since Jan 1998 Sharpe", "Since Jan 1998 Annualized Return {Sharpe}")
 stats_df <- move_col_after(stats_df, "Lifetime Mean Daily Spread", "Monthly Spread > 10% (Last 6M)")
