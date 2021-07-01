@@ -40,7 +40,8 @@ def get_prices(tickers,
                types=None,
                data_source='tiingo',
                out_path=None,
-               sort_tks=False):
+               sort_tks=False,
+               api_key=None):
     """Download prices from external source.
     Args:
         tickers (str or list): The tickers to be downloaded.
@@ -51,6 +52,7 @@ def get_prices(tickers,
                      See pandas_datareader doc.
         out_path: If specified, the results will be saved to specified path.
         sort_tks: If the tickers in result should be sorted.
+        api_key: If specified will use provided api_key.
 
     Returns:
         pandas.DataFrame
@@ -68,7 +70,8 @@ def get_prices(tickers,
         )
 
     print(f'Downloading prices from {data_source.capitalize()}...')
-    df = get_prices_from_source(tickers, start, end, data_source, types)
+    df = get_prices_from_source(tickers, start, end, data_source, types,
+                                api_key)
 
     if out_path is not None:
         try:
@@ -80,7 +83,7 @@ def get_prices(tickers,
     return df
 
 
-def get_tiingo_prices(tickers, start, end):
+def get_tiingo_prices(tickers, start, end, api_key=None):
     """Wrapper to fetch Tiingo prices.
 
     Naively using pandas_datareader doesn't work, since if a ticker in
@@ -102,7 +105,8 @@ def get_tiingo_prices(tickers, start, end):
     """
 
     all_results = []
-
+    if api_key is None:
+        api_key = os.getenv('TIINGO_API_KEY')
     # Sort tickers so that error logging can be used to identify progress
     tickers = sorted(tickers)
 
@@ -112,7 +116,7 @@ def get_tiingo_prices(tickers, start, end):
                                 data_source='tiingo',
                                 start=start,
                                 end=end,
-                                api_key=os.getenv('TIINGO_API_KEY'))
+                                api_key=api_key)
             df = df[['adjClose']]
         except KeyError as e:
             if e.args[0] == 'date':
@@ -133,8 +137,9 @@ def get_tiingo_prices(tickers, start, end):
     return pd.concat(all_results)
 
 
-def get_prices_from_source(tickers, start, end, source, types=None):
-    """Download daily prices from Yahoo!"""
+def get_prices_from_source(tickers, start, end, source, types=None,
+                           api_key=None):
+    """Download daily prices from Yahoo!."""
     if types is not None and not all(i in VALID_TYPES[source] for i in types):
         raise ValueError(
             f"Wrong 'types' provided for source {source}. Must be chosen from "
@@ -142,7 +147,7 @@ def get_prices_from_source(tickers, start, end, source, types=None):
 
     params = {}
     if source == 'tiingo':
-        df = get_tiingo_prices(tickers, start, end)
+        df = get_tiingo_prices(tickers, start, end, api_key)
     else:
         df = web.DataReader(name=tickers,
                             data_source=source,

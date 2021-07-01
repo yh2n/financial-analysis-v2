@@ -9,8 +9,8 @@ BASKET_NAME = 'scorecard_single_ticker'
 TICKER_PATH = BASKET_PATH / '{}.csv'.format(BASKET_NAME)
 
 
-def load_bucket_prices(
-        project_root, start, end, data_source='factset', basket=BASKET_NAME):
+def load_bucket_prices(project_root, start, end, data_source='tiingo',
+                       basket=BASKET_NAME, api_key=None):
     filename = f'prc_{basket}_{start}_{end}_{data_source}.csv'
     if isinstance(project_root, str):
         project_root = Path(project_root)
@@ -29,9 +29,8 @@ def load_bucket_prices(
     else:
         print(f'No existing file found. Fetching data for \
             {len(tickers)} tickers...')
-        df = get_prices(
-            tickers, start, end,
-            data_source=data_source)
+        df = get_prices(tickers, start, end,
+                        data_source=data_source, api_key=api_key)
         df.to_csv(filepath)
         print("Results saved to:", filepath)
     return df
