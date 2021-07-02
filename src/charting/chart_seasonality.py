@@ -35,6 +35,35 @@ def calc_monthly_rtns(series, s_type='price'):
     return r_monthly
 
 
+def calc_avg_daily_rtns(prices):
+    """Calculate the average returns of every calendar day
+    based on historical prices.
+    Args:
+        prices (pd.Series): Daily prices timeseries.
+
+    Returns:
+        A pd.Series of average daily returns
+    """
+    tk = prices.name
+    rtns = prices.pct_change()
+    avg_d_rtns = rtns.groupby([prices.index.month, prices.index.day]).mean()
+    avg_d_rtns.index.rename(['Month', 'Day'], [0, 1], inplace=True)
+    avg_d_rtns = avg_d_rtns.reset_index()
+    avg_d_rtns.index = pd.to_datetime('2020-'
+                                      + avg_d_rtns['Month'].apply(str)
+                                      + '-'
+                                      + avg_d_rtns['Day'].apply(str),
+                                      format='%Y-%m-%d')
+    return avg_d_rtns[tk]
+
+
+def calc_cum_avg_daily_rtns(prices):
+    """Calculate cumulative average daily returns."""
+    avg_d_rtns = calc_avg_daily_rtns(prices)
+    cum_avg_d_rtn = (1 + avg_d_rtns).cumprod() - 1
+    return cum_avg_d_rtn
+
+
 def calc_monthly_seasonality_stats(prices):
     """Calculate mean returns and hit rates for each calendar month.
     Args:
@@ -86,6 +115,38 @@ def chart_monthly_seasonality(prices, output_path=None):
     # Add legend
     fig.legend(loc="upper left", bbox_to_anchor=(0, 1),
                bbox_transform=ax.transAxes)
+
+    if output_path is not None:
+        fig.savefig(output_path)
+
+
+def chart_cum_avg_daily_rtns(prices, output_path=None):
+    """Chart cumulative avg daily returns.
+    Args:
+        prices (pd.Series): Daily prices used for calculating seasonality.
+        output_path (str): If specified, chart will be saved to the
+                           specified path.
+
+    """
+    tk = prices.name
+    prices = prices.dropna()
+    cum_avg_d_rtns = calc_cum_avg_daily_rtns(prices)
+    # avg_d_rtns = calc_avg_daily_rtns(prices)
+    # avg_m_rtns = calc_monthly_rtns(avg_d_rtns, 'return')
+
+    fig, ax = plt.subplots(figsize=(20, 9))
+    df = 100 + cum_avg_d_rtns*100
+    df.index = df.index.strftime('%b-%d')
+    ax.plot(df, color='red')
+    ax.xaxis.set_major_locator(plticker.MultipleLocator(base=15))
+    ax.yaxis.set_major_locator(plticker.MultipleLocator(base=5))
+    ax.yaxis.tick_right()
+    today_idx = df.index.get_loc(pd.Timestamp.today().strftime('%b-%d'))
+    ax.axvline(today_idx, color='green')
+    init_date = prices.index[0].strftime('%Y-%m-%d')
+    last_date = prices.index[-1].strftime('%Y-%m-%d')
+    ax.set_title(f'{tk} Seasonality: Cumulative Avg Daily Return'
+                 f' ({init_date} to {last_date})')
 
     if output_path is not None:
         fig.savefig(output_path)
