@@ -137,12 +137,12 @@ def chart_cum_avg_daily_rtns(prices, output_path=None):
     fig, ax = plt.subplots(figsize=(20, 9))
     df = 100 + cum_avg_d_rtns*100
     df.index = df.index.strftime('%b-%d')
-    ax.plot(df, color='red')
+    ax.plot(df, color='midnightblue')
     ax.xaxis.set_major_locator(plticker.MultipleLocator(base=15))
     ax.yaxis.set_major_locator(plticker.MultipleLocator(base=5))
     ax.yaxis.tick_right()
     today_idx = df.index.get_loc(pd.Timestamp.today().strftime('%b-%d'))
-    ax.axvline(today_idx, color='green')
+    ax.axvline(today_idx, color='black')
     init_date = prices.index[0].strftime('%Y-%m-%d')
     last_date = prices.index[-1].strftime('%Y-%m-%d')
     ax.set_title(f'{tk} Seasonality: Cumulative Avg Daily Return'
