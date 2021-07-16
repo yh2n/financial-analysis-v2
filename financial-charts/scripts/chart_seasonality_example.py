@@ -10,6 +10,7 @@ from src.charting.chart_seasonality import (chart_monthly_seasonality,
 
 SECRETS_PATH = Path('../tiingo_secrets.json')
 OUTPUT_PATH = Path('../financial-charts/static/reports/charts')
+Path('OUTPUT_PATH').mkdir(parents=True, exist_ok=True)
 
 # if __name__ == '__main__':
 def rendering_charts(selected_ticker):
