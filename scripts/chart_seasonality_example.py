@@ -8,8 +8,8 @@ from src.charting.chart_seasonality import (chart_monthly_seasonality,
                                         chart_cum_avg_daily_rtns)
 
 
-SECRETS_PATH = Path('../tiingo_secrets.json')
-OUTPUT_PATH = Path('../financial-charts/static/reports/charts')
+SECRETS_PATH = Path('tiingo_secrets.json')
+OUTPUT_PATH = Path('static/reports/charts')
 Path('OUTPUT_PATH').mkdir(parents=True, exist_ok=True)
 
 # if __name__ == '__main__':
