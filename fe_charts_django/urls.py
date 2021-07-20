@@ -16,7 +16,6 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from .views import (home_page, get_new_charts)
-from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 
 
 urlpatterns = [
@@ -25,4 +24,3 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 ]
 
-urlpatterns += staticfiles_urlpatterns()
