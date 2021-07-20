@@ -6,8 +6,6 @@ from chart_seasonality_example import rendering_charts
 
 
 def home_page(request):
-    if request.method == 'GET':
-        print("ˆˆˆˆˆˆˆˆˆˆˆˆˆˆHomepageˆˆˆˆˆˆˆˆˆˆˆˆ")
     return render(request, "home.html")
 
 
