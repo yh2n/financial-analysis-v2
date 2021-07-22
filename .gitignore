@@ -136,7 +136,7 @@ data/raw
 data/processed
 notebooks/sandbox.ipynb
 references/
-reports/
+# reports/
 .Rproj.user
 scorecard/output
 scorecard/*.RData
