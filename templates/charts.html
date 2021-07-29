@@ -12,7 +12,7 @@
       flex-direction: column;
     }
     h1 {
-      color: "midnightblue"
+      color: #191970
     }
     .chart_container {
       display: flex;
@@ -24,6 +24,10 @@
       width: 100%;
     }
 
+    input {
+          border: solid midnightblue;
+          background-color: white;
+        }
     @media all and (max-width: 1200px) {
     form {
       margin: 100px 0 
@@ -35,8 +39,9 @@
     <h1>Financial Analysis</h1>
     <form method="POST" action="/charts" style="margin-top: 100px">
       {% csrf_token %}
-      <input type="text" name="ticker" style="border: solid midnightblue" />
-      <input type="submit" style="border: solid midnightblue" />
+      <input type="text" name="ticker"/>
+      <input type="submit" style="color: green"/>
+
     </form>
     </div>
     <div class="chart_container">

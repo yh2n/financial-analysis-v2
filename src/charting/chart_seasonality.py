@@ -137,7 +137,7 @@ def chart_cum_avg_daily_rtns(prices, output_path=None):
     fig, ax = plt.subplots(figsize=(20, 9))
     df = 100 + cum_avg_d_rtns*100
     df.index = df.index.strftime('%b-%d')
-    ax.plot(df, color='midnightblue')
+    ax.plot(df, color='deepskyblue')
     ax.xaxis.set_major_locator(plticker.MultipleLocator(base=15))
     ax.yaxis.set_major_locator(plticker.MultipleLocator(base=5))
     ax.yaxis.tick_right()
