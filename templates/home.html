@@ -7,9 +7,18 @@
     {% load static %} <link rel=”stylesheet” type="text/css" href=”{% static
     ‘fe_admin/static/style.css’ %}”>
     <title>Financial Analysis</title>
+    <style>
+    body {
+    display: flex;
+    flex-direction: column;
+  }
+    h1 {
+      color:midnightblue
+    }
+  </style>
   </head>
   <body>
-    <h1 style="color: midnightblue">Financial Analysis</h1>
+    <h1>Financial Analysis</h1>
     <form method="POST" action="/charts" style="margin-top: 100px">
       {% csrf_token %}
       <input type="text" name="ticker" style="border: solid midnightblue" />
